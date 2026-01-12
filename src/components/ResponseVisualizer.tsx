@@ -483,6 +483,63 @@ export function ResponseVisualizer({
     return "keyvalue";
   }, [template.viewType, targetData]);
 
+  // Normalize data for rendering - convert single objects to array when needed
+  const { normalizedData, effectiveColumns } = useMemo(() => {
+    let normalized: unknown[] | Record<string, unknown> = [];
+    let cols = template.columns;
+
+    // For table/cards/list views, we need array data
+    if (effectiveViewType === "table" || effectiveViewType === "cards" || effectiveViewType === "list") {
+      if (Array.isArray(targetData)) {
+        normalized = targetData;
+      } else if (typeof targetData === "object" && targetData !== null) {
+        // Wrap single object in array
+        normalized = [targetData];
+      } else if (targetData !== undefined && targetData !== null) {
+        // Wrap primitive in array
+        normalized = [targetData];
+      }
+
+      // Generate columns if empty and we have object data
+      if (cols.length === 0 && normalized.length > 0 && typeof normalized[0] === "object" && normalized[0] !== null) {
+        const firstItem = normalized[0] as Record<string, unknown>;
+        const keys = Object.keys(firstItem);
+        cols = keys.slice(0, 10).map((key) => ({
+          key,
+          label: keyToLabel(key),
+          visible: true,
+          type: detectType(firstItem[key]),
+        }));
+      }
+    } else if (effectiveViewType === "keyvalue") {
+      // For key-value, we need object data
+      if (Array.isArray(targetData) && targetData.length > 0) {
+        // Use first item of array
+        normalized = (typeof targetData[0] === "object" && targetData[0] !== null)
+          ? targetData[0] as Record<string, unknown>
+          : { value: targetData[0] };
+      } else if (typeof targetData === "object" && targetData !== null) {
+        normalized = targetData as Record<string, unknown>;
+      } else if (targetData !== undefined && targetData !== null) {
+        // Wrap primitive
+        normalized = { value: targetData };
+      }
+
+      // Generate columns if empty
+      if (cols.length === 0 && typeof normalized === "object" && !Array.isArray(normalized)) {
+        const keys = Object.keys(normalized);
+        cols = keys.map((key) => ({
+          key,
+          label: keyToLabel(key),
+          visible: true,
+          type: detectType((normalized as Record<string, unknown>)[key]),
+        }));
+      }
+    }
+
+    return { normalizedData: normalized, effectiveColumns: cols };
+  }, [targetData, effectiveViewType, template.columns]);
+
   // If no valid data
   if (targetData === undefined || targetData === null) {
     return (
@@ -499,24 +556,24 @@ export function ResponseVisualizer({
     <div className="h-full flex flex-col">
       <TemplateConfig template={template} onChange={handleTemplateChange} />
       <div className="flex-1 overflow-auto">
-        {effectiveViewType === "table" && Array.isArray(targetData) && (
-          <TableView data={targetData} columns={template.columns} />
+        {effectiveViewType === "table" && Array.isArray(normalizedData) && (
+          <TableView data={normalizedData} columns={effectiveColumns} />
         )}
-        {effectiveViewType === "cards" && Array.isArray(targetData) && (
+        {effectiveViewType === "cards" && Array.isArray(normalizedData) && (
           <CardsView
-            data={targetData}
-            columns={template.columns}
+            data={normalizedData}
+            columns={effectiveColumns}
             titleField={template.cardTitleField}
             subtitleField={template.cardSubtitleField}
           />
         )}
-        {effectiveViewType === "list" && Array.isArray(targetData) && (
-          <ListView data={targetData} />
+        {effectiveViewType === "list" && Array.isArray(normalizedData) && (
+          <ListView data={normalizedData} />
         )}
-        {effectiveViewType === "keyvalue" && typeof targetData === "object" && (
+        {effectiveViewType === "keyvalue" && typeof normalizedData === "object" && !Array.isArray(normalizedData) && (
           <KeyValueView
-            data={targetData as Record<string, unknown>}
-            columns={template.columns}
+            data={normalizedData as Record<string, unknown>}
+            columns={effectiveColumns}
           />
         )}
       </div>

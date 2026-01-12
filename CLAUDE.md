@@ -357,6 +357,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 |----|-------------|--------|
 | 1 | Environment variables lost after page refresh | ✅ Fixed |
 | 2 | Clicking second request in collection loads first request | ✅ Fixed |
+| 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed |
 
 ---
 
