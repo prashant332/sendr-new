@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useCollections, createRequest } from "@/hooks/useCollections";
 import type { KeyValuePair } from "@/components/KeyValueEditor";
-import type { RequestBody } from "@/lib/db";
+import type { RequestBody, RequestAuth } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
@@ -13,6 +13,7 @@ interface RequestData {
   headers: KeyValuePair[];
   params: KeyValuePair[];
   body: RequestBody;
+  auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
 }
@@ -44,6 +45,7 @@ export function SaveRequestModal({
         headers: requestData.headers,
         params: requestData.params,
         body: requestData.body,
+        auth: requestData.auth,
         preRequestScript: requestData.preRequestScript,
         testScript: requestData.testScript,
       });

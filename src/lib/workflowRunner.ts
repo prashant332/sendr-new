@@ -199,13 +199,46 @@ async function executeRequest(
     : interpolatedUrl;
 
   // Build headers
-  const headers: Record<string, string> = {};
+  let headers: Record<string, string> = {};
   for (const h of request.headers) {
     if (h.active && h.key) {
       headers[interpolate(h.key, currentVariables)] = interpolate(
         h.value,
         currentVariables
       );
+    }
+  }
+
+  // Apply authentication (backward compatible)
+  let authUrl = finalUrl;
+  if (request.auth && request.auth.type !== "none") {
+    const auth = request.auth;
+    if (auth.type === "bearer") {
+      const token = interpolate(auth.bearer.token, currentVariables);
+      const headerKey = interpolate(auth.bearer.headerKey || "Authorization", currentVariables);
+      const prefix = interpolate(auth.bearer.prefix || "Bearer", currentVariables);
+      if (token) {
+        headers[headerKey] = prefix ? `${prefix} ${token}` : token;
+      }
+    } else if (auth.type === "basic") {
+      const username = interpolate(auth.basic.username, currentVariables);
+      const password = interpolate(auth.basic.password, currentVariables);
+      const headerKey = interpolate(auth.basic.headerKey || "Authorization", currentVariables);
+      if (username || password) {
+        const encoded = btoa(`${username}:${password}`);
+        headers[headerKey] = `Basic ${encoded}`;
+      }
+    } else if (auth.type === "apikey") {
+      const key = interpolate(auth.apikey.key, currentVariables);
+      const value = interpolate(auth.apikey.value, currentVariables);
+      if (key && value) {
+        if (auth.apikey.addTo === "header") {
+          headers[key] = value;
+        } else {
+          const separator = authUrl.includes("?") ? "&" : "?";
+          authUrl = `${authUrl}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+        }
+      }
     }
   }
 
@@ -273,7 +306,7 @@ async function executeRequest(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         method: request.method,
-        url: finalUrl,
+        url: authUrl,
         headers,
         body: requestBody,
       }),
@@ -316,7 +349,7 @@ async function executeRequest(
   }
 
   return {
-    interpolatedUrl: finalUrl,
+    interpolatedUrl: authUrl,
     statusCode,
     statusText,
     duration,

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { BodyEditor, createDefaultBody, getContentTypeForBody } from "@/components/BodyEditor";
+import { AuthEditor, createDefaultAuth, applyAuth } from "@/components/AuthEditor";
 import { EnvironmentSelector } from "@/components/EnvironmentSelector";
 import { EnvironmentManager } from "@/components/EnvironmentManager";
 import { Sidebar } from "@/components/Sidebar";
@@ -14,10 +15,10 @@ import { useEnvironmentStore } from "@/store/environmentStore";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult, ScriptContext } from "@/lib/scriptRunner";
 import { updateRequest, type SavedRequest } from "@/hooks/useCollections";
-import { RequestBody } from "@/lib/db";
+import { RequestBody, RequestAuth } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-type RequestTab = "params" | "headers" | "body" | "scripts";
+type RequestTab = "params" | "headers" | "auth" | "body" | "scripts";
 
 interface ApiResponse {
   status: number;
@@ -45,6 +46,7 @@ export default function Home() {
   const [params, setParams] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
   const [headers, setHeaders] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
   const [body, setBody] = useState<RequestBody>(createDefaultBody());
+  const [auth, setAuth] = useState<RequestAuth>(createDefaultAuth());
 
   // Scripts
   const [preRequestScript, setPreRequestScript] = useState("");
@@ -77,6 +79,7 @@ export default function Home() {
         headers,
         params,
         body,
+        auth,
         preRequestScript,
         testScript,
       });
@@ -84,7 +87,7 @@ export default function Home() {
     } catch {
       setSaveStatus("unsaved");
     }
-  }, [activeRequestId, method, url, headers, params, body, preRequestScript, testScript]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript]);
 
   // Debounced auto-save
   useEffect(() => {
@@ -97,7 +100,7 @@ export default function Home() {
       saveCurrentRequest();
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [activeRequestId, method, url, headers, params, body, preRequestScript, testScript, saveCurrentRequest]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, saveCurrentRequest]);
 
   // Load request from sidebar
   const handleRequestSelect = (request: SavedRequest) => {
@@ -115,6 +118,12 @@ export default function Home() {
       });
     } else {
       setBody(request.body);
+    }
+    // Handle backward compatibility: old requests may not have auth
+    if (request.auth) {
+      setAuth(request.auth);
+    } else {
+      setAuth(createDefaultAuth());
     }
     setPreRequestScript(request.preRequestScript);
     setTestScript(request.testScript);
@@ -138,6 +147,7 @@ export default function Home() {
     setHeaders([{ key: "", value: "", active: true }]);
     setParams([{ key: "", value: "", active: true }]);
     setBody(createDefaultBody());
+    setAuth(createDefaultAuth());
     setPreRequestScript("");
     setTestScript("");
     setResponse(null);
@@ -187,12 +197,23 @@ export default function Home() {
       }
 
       // Build headers object
-      const headerObj: Record<string, string> = {};
+      let headerObj: Record<string, string> = {};
       headers.filter((h) => h.active && h.key).forEach((h) => {
         const key = interpolate(h.key, variables);
         const value = interpolate(h.value, variables);
         headerObj[key] = value;
       });
+
+      // Apply authentication
+      const authResult = applyAuth(auth, headerObj, variables, interpolate);
+      headerObj = authResult.headers;
+
+      // Add auth query params if any (for API key in query)
+      if (authResult.queryParams) {
+        const authParams = new URLSearchParams(authResult.queryParams);
+        const separator = finalUrl.includes("?") ? "&" : "?";
+        finalUrl = `${finalUrl}${separator}${authParams.toString()}`;
+      }
 
       // Prepare request body based on mode
       let requestBody: unknown = undefined;
@@ -273,6 +294,7 @@ export default function Home() {
   const tabs: { id: RequestTab; label: string }[] = [
     { id: "params", label: "Params" },
     { id: "headers", label: "Headers" },
+    { id: "auth", label: "Auth" },
     { id: "body", label: "Body" },
     { id: "scripts", label: "Scripts" },
   ];
@@ -283,6 +305,7 @@ export default function Home() {
     headers,
     params,
     body,
+    auth,
     preRequestScript,
     testScript,
   };
@@ -393,6 +416,10 @@ export default function Home() {
                   keyPlaceholder="Header"
                   valuePlaceholder="Value"
                 />
+              )}
+
+              {activeTab === "auth" && (
+                <AuthEditor auth={auth} onChange={setAuth} />
               )}
 
               {activeTab === "body" && (

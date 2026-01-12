@@ -61,6 +61,7 @@ src/
 │   ├── api/proxy/route.ts    # Proxy API endpoint
 │   └── page.tsx              # Main UI component
 ├── components/
+│   ├── AuthEditor.tsx        # Authentication configuration editor
 │   ├── BodyEditor.tsx        # Request body editor with mode selector
 │   ├── KeyValueEditor.tsx    # Reusable key-value pair editor
 │   ├── Sidebar.tsx           # Collections tree view
@@ -109,6 +110,27 @@ interface RequestBody {
   formData: { key: string; value: string; active: boolean }[];
 }
 
+type AuthType = "none" | "bearer" | "basic" | "apikey";
+
+interface RequestAuth {
+  type: AuthType;
+  bearer: {
+    token: string;
+    headerKey: string;   // Customizable, defaults to "Authorization"
+    prefix: string;      // Customizable, defaults to "Bearer"
+  };
+  basic: {
+    username: string;
+    password: string;
+    headerKey: string;   // Customizable, defaults to "Authorization"
+  };
+  apikey: {
+    key: string;
+    value: string;
+    addTo: "header" | "query";
+  };
+}
+
 interface SavedRequest {
   id: string;
   collectionId: string;
@@ -118,6 +140,7 @@ interface SavedRequest {
   headers: { key: string; value: string; active: boolean }[];
   params: { key: string; value: string; active: boolean }[];
   body: RequestBody;
+  auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
 }
@@ -205,6 +228,21 @@ pm.test(name, callback)           // Define test assertion
 | x-www-form-urlencoded | URL encoded form data |
 | raw | Plain text |
 
+### 5.7 Authentication
+| Type | Description |
+|------|-------------|
+| None | No authentication |
+| Bearer Token | Token-based auth with customizable header name and prefix |
+| Basic Auth | Username/password with customizable header name |
+| API Key | Key-value pair added to header or query params |
+
+**Features:**
+- Customizable header key (e.g., use "X-Auth-Token" instead of "Authorization")
+- Customizable prefix for Bearer tokens (e.g., "Bearer", "Token", or none)
+- API Key can be added to header or query parameters
+- All fields support variable interpolation (`{{variable}}`)
+- Auth applied in both manual requests and workflow runner
+
 ---
 
 ## 6. Implementation Progress
@@ -249,6 +287,15 @@ pm.test(name, callback)           // Define test assertion
 - [x] Form data key-value editor
 - [x] Proxy handling for all body types
 
+### Phase 8: Authentication ✅
+- [x] Auth type selector (None, Bearer, Basic, API Key)
+- [x] Customizable header keys for Bearer and Basic auth
+- [x] Customizable prefix for Bearer tokens
+- [x] API Key support (header or query param)
+- [x] Variable interpolation in all auth fields
+- [x] Auth Editor component with live preview
+- [x] Workflow runner auth support
+
 ---
 
 ## 7. Bug Fixes
@@ -262,7 +309,7 @@ pm.test(name, callback)           // Define test assertion
 
 ## 8. Future Enhancements
 
-- [ ] Authentication (Bearer token, Basic Auth, OAuth 2.0)
+- [ ] OAuth 2.0 Authentication (Authorization Code, Client Credentials flows)
 - [ ] Request History
 - [ ] Import/Export (Postman collection import, JSON export)
 - [ ] Response Tabs (Headers, Cookies, Raw view)

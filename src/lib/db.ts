@@ -14,6 +14,27 @@ export interface RequestBody {
   formData: { key: string; value: string; active: boolean }[]; // For form-data and x-www-form-urlencoded
 }
 
+export type AuthType = "none" | "bearer" | "basic" | "apikey";
+
+export interface RequestAuth {
+  type: AuthType;
+  bearer: {
+    token: string;
+    headerKey: string; // Customizable, defaults to "Authorization"
+    prefix: string; // Customizable, defaults to "Bearer"
+  };
+  basic: {
+    username: string;
+    password: string;
+    headerKey: string; // Customizable, defaults to "Authorization"
+  };
+  apikey: {
+    key: string;
+    value: string;
+    addTo: "header" | "query"; // Where to add the API key
+  };
+}
+
 export interface SavedRequest {
   id: string;
   collectionId: string;
@@ -23,6 +44,7 @@ export interface SavedRequest {
   headers: { key: string; value: string; active: boolean }[];
   params: { key: string; value: string; active: boolean }[];
   body: RequestBody;
+  auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
 }
