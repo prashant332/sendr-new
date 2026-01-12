@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useCollections, createRequest } from "@/hooks/useCollections";
 import type { KeyValuePair } from "@/components/KeyValueEditor";
+import type { RequestBody } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
@@ -11,7 +12,7 @@ interface RequestData {
   url: string;
   headers: KeyValuePair[];
   params: KeyValuePair[];
-  body: string;
+  body: RequestBody;
   preRequestScript: string;
   testScript: string;
 }

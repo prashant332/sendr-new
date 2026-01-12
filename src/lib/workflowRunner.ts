@@ -180,9 +180,8 @@ async function executeRequest(
     }
   }
 
-  // Interpolate URL, headers, params, and body
+  // Interpolate URL
   const interpolatedUrl = interpolate(request.url, currentVariables);
-  const interpolatedBody = interpolate(request.body || "", currentVariables);
 
   // Build query params
   const activeParams = request.params.filter((p) => p.active && p.key);
@@ -210,6 +209,56 @@ async function executeRequest(
     }
   }
 
+  // Build request body based on mode
+  let requestBody: unknown = undefined;
+  // Cast to unknown first for backward compatibility with old string bodies
+  const body = request.body as unknown;
+
+  // Handle backward compatibility: old requests have body as string
+  if (typeof body === "string") {
+    if (request.method !== "GET" && body.trim()) {
+      const interpolatedBody = interpolate(body, currentVariables);
+      try {
+        requestBody = JSON.parse(interpolatedBody);
+        if (!headers["Content-Type"]) {
+          headers["Content-Type"] = "application/json";
+        }
+      } catch {
+        requestBody = interpolatedBody;
+      }
+    }
+  } else if (body && typeof body === "object" && "mode" in body && (body as { mode: string }).mode !== "none" && request.method !== "GET") {
+    const typedBody = body as { mode: string; raw: string; formData: { key: string; value: string; active: boolean }[] };
+    if (typedBody.mode === "json" || typedBody.mode === "xml" || typedBody.mode === "raw") {
+      const interpolatedBody = interpolate(typedBody.raw, currentVariables);
+      if (typedBody.mode === "json" && interpolatedBody.trim()) {
+        try {
+          requestBody = JSON.parse(interpolatedBody);
+        } catch {
+          requestBody = interpolatedBody;
+        }
+        if (!headers["Content-Type"]) {
+          headers["Content-Type"] = "application/json";
+        }
+      } else if (typedBody.mode === "xml") {
+        requestBody = interpolatedBody;
+        if (!headers["Content-Type"]) {
+          headers["Content-Type"] = "application/xml";
+        }
+      } else {
+        requestBody = interpolatedBody;
+      }
+    } else if (typedBody.mode === "form-data" || typedBody.mode === "x-www-form-urlencoded") {
+      const formData: Record<string, string> = {};
+      typedBody.formData
+        .filter((f) => f.active && f.key)
+        .forEach((f) => {
+          formData[interpolate(f.key, currentVariables)] = interpolate(f.value, currentVariables);
+        });
+      requestBody = { _formData: formData, _formMode: typedBody.mode };
+    }
+  }
+
   // Make the request via proxy
   const startTime = Date.now();
   let statusCode = 0;
@@ -226,7 +275,7 @@ async function executeRequest(
         method: request.method,
         url: finalUrl,
         headers,
-        body: request.method !== "GET" ? interpolatedBody : undefined,
+        body: requestBody,
       }),
     });
 

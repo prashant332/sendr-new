@@ -1,0 +1,135 @@
+"use client";
+
+import Editor from "@monaco-editor/react";
+import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
+import { BodyMode, RequestBody } from "@/lib/db";
+
+interface BodyEditorProps {
+  body: RequestBody;
+  onChange: (body: RequestBody) => void;
+}
+
+const BODY_MODES: { value: BodyMode; label: string }[] = [
+  { value: "none", label: "None" },
+  { value: "json", label: "JSON" },
+  { value: "xml", label: "XML" },
+  { value: "form-data", label: "Form Data" },
+  { value: "x-www-form-urlencoded", label: "x-www-form-urlencoded" },
+  { value: "raw", label: "Raw" },
+];
+
+export function BodyEditor({ body, onChange }: BodyEditorProps) {
+  const handleModeChange = (mode: BodyMode) => {
+    onChange({ ...body, mode });
+  };
+
+  const handleRawChange = (value: string | undefined) => {
+    onChange({ ...body, raw: value || "" });
+  };
+
+  const handleFormDataChange = (formData: KeyValuePair[]) => {
+    onChange({ ...body, formData });
+  };
+
+  const getEditorLanguage = () => {
+    switch (body.mode) {
+      case "json":
+        return "json";
+      case "xml":
+        return "xml";
+      default:
+        return "plaintext";
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Mode Selector */}
+      <div className="flex items-center gap-2">
+        {BODY_MODES.map((mode) => (
+          <button
+            key={mode.value}
+            onClick={() => handleModeChange(mode.value)}
+            className={`px-3 py-1 text-xs rounded transition-colors ${
+              body.mode === mode.value
+                ? "bg-blue-600 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Body Content */}
+      {body.mode === "none" && (
+        <div className="text-zinc-500 text-sm py-4 text-center">
+          This request does not have a body
+        </div>
+      )}
+
+      {(body.mode === "json" || body.mode === "xml" || body.mode === "raw") && (
+        <div className="h-48 border border-zinc-700 rounded overflow-hidden">
+          <Editor
+            height="100%"
+            language={getEditorLanguage()}
+            theme="vs-dark"
+            value={body.raw}
+            onChange={handleRawChange}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+            }}
+          />
+        </div>
+      )}
+
+      {(body.mode === "form-data" || body.mode === "x-www-form-urlencoded") && (
+        <div>
+          <KeyValueEditor
+            pairs={body.formData}
+            onChange={handleFormDataChange}
+            keyPlaceholder="Key"
+            valuePlaceholder="Value"
+          />
+          <div className="text-xs text-zinc-500 mt-2">
+            {body.mode === "form-data"
+              ? "Data will be sent as multipart/form-data"
+              : "Data will be sent as application/x-www-form-urlencoded"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper to create a default body
+export function createDefaultBody(): RequestBody {
+  return {
+    mode: "none",
+    raw: "{\n  \n}",
+    formData: [{ key: "", value: "", active: true }],
+  };
+}
+
+// Helper to get content type for body mode
+export function getContentTypeForBody(body: RequestBody): string | null {
+  switch (body.mode) {
+    case "json":
+      return "application/json";
+    case "xml":
+      return "application/xml";
+    case "form-data":
+      return "multipart/form-data";
+    case "x-www-form-urlencoded":
+      return "application/x-www-form-urlencoded";
+    case "raw":
+      return "text/plain";
+    default:
+      return null;
+  }
+}

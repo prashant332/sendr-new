@@ -48,11 +48,40 @@ export async function POST(request: NextRequest) {
 
     const startTime = Date.now();
 
+    // Handle form data body types
+    let finalBody = requestBody;
+    if (
+      requestBody &&
+      typeof requestBody === "object" &&
+      "_formData" in requestBody &&
+      "_formMode" in requestBody
+    ) {
+      const { _formData, _formMode } = requestBody as {
+        _formData: Record<string, string>;
+        _formMode: string;
+      };
+
+      if (_formMode === "x-www-form-urlencoded") {
+        // Convert to URL encoded string
+        finalBody = new URLSearchParams(_formData).toString();
+        filteredHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+      } else if (_formMode === "form-data") {
+        // For multipart/form-data, axios handles FormData automatically
+        const formData = new FormData();
+        for (const [key, value] of Object.entries(_formData)) {
+          formData.append(key, value);
+        }
+        finalBody = formData;
+        // Don't set Content-Type for form-data, axios will set it with boundary
+        delete filteredHeaders["Content-Type"];
+      }
+    }
+
     const response = await axios({
       method,
       url,
       headers: filteredHeaders,
-      data: requestBody,
+      data: finalBody,
       validateStatus: () => true, // Don't throw on any status code
     });
 

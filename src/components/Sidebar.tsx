@@ -160,50 +160,67 @@ function CollectionItem({
           {requests.length === 0 ? (
             <div className="text-zinc-600 text-xs py-1 px-2">No requests</div>
           ) : (
-            requests.map((request) => (
-              <div
+            requests.map((request, index) => (
+              <RequestItem
                 key={request.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRequestSelect(request);
-                }}
-                className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer group ${
-                  activeRequestId === request.id
-                    ? "bg-zinc-700"
-                    : "hover:bg-zinc-800"
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`text-xs font-medium ${
-                      request.method === "GET"
-                        ? "text-green-400"
-                        : request.method === "POST"
-                        ? "text-yellow-400"
-                        : request.method === "PUT"
-                        ? "text-blue-400"
-                        : request.method === "DELETE"
-                        ? "text-red-400"
-                        : "text-purple-400"
-                    }`}
-                  >
-                    {request.method.slice(0, 3)}
-                  </span>
-                  <span className="text-sm text-zinc-300 truncate">
-                    {request.name}
-                  </span>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteRequest(e, request.id)}
-                  className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 text-xs"
-                >
-                  ×
-                </button>
-              </div>
+                request={request}
+                isActive={activeRequestId === request.id}
+                onSelect={() => onRequestSelect(request)}
+                onDelete={(e) => handleDeleteRequest(e, request.id)}
+              />
             ))
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface RequestItemProps {
+  request: SavedRequest;
+  isActive: boolean;
+  onSelect: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
+
+function RequestItem({ request, isActive, onSelect, onDelete }: RequestItemProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect();
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer group ${
+        isActive ? "bg-zinc-700" : "hover:bg-zinc-800"
+      }`}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className={`text-xs font-medium ${
+            request.method === "GET"
+              ? "text-green-400"
+              : request.method === "POST"
+              ? "text-yellow-400"
+              : request.method === "PUT"
+              ? "text-blue-400"
+              : request.method === "DELETE"
+              ? "text-red-400"
+              : "text-purple-400"
+          }`}
+        >
+          {request.method.slice(0, 3)}
+        </span>
+        <span className="text-sm text-zinc-300 truncate">{request.name}</span>
+      </div>
+      <button
+        onClick={onDelete}
+        className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 text-xs"
+      >
+        ×
+      </button>
     </div>
   );
 }

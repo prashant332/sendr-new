@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
+import { BodyEditor, createDefaultBody, getContentTypeForBody } from "@/components/BodyEditor";
 import { EnvironmentSelector } from "@/components/EnvironmentSelector";
 import { EnvironmentManager } from "@/components/EnvironmentManager";
 import { Sidebar } from "@/components/Sidebar";
@@ -13,6 +14,7 @@ import { useEnvironmentStore } from "@/store/environmentStore";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult, ScriptContext } from "@/lib/scriptRunner";
 import { updateRequest, type SavedRequest } from "@/hooks/useCollections";
+import { RequestBody } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 type RequestTab = "params" | "headers" | "body" | "scripts";
@@ -42,7 +44,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<RequestTab>("params");
   const [params, setParams] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
   const [headers, setHeaders] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
-  const [body, setBody] = useState("{\n  \n}");
+  const [body, setBody] = useState<RequestBody>(createDefaultBody());
 
   // Scripts
   const [preRequestScript, setPreRequestScript] = useState("");
@@ -104,7 +106,16 @@ export default function Home() {
     setUrl(request.url);
     setHeaders(request.headers);
     setParams(request.params);
-    setBody(request.body);
+    // Handle backward compatibility: old requests have body as string
+    if (typeof request.body === "string") {
+      setBody({
+        mode: "json",
+        raw: request.body,
+        formData: [{ key: "", value: "", active: true }],
+      });
+    } else {
+      setBody(request.body);
+    }
     setPreRequestScript(request.preRequestScript);
     setTestScript(request.testScript);
     setResponse(null);
@@ -126,7 +137,7 @@ export default function Home() {
     setUrl("");
     setHeaders([{ key: "", value: "", active: true }]);
     setParams([{ key: "", value: "", active: true }]);
-    setBody("{\n  \n}");
+    setBody(createDefaultBody());
     setPreRequestScript("");
     setTestScript("");
     setResponse(null);
@@ -183,17 +194,34 @@ export default function Home() {
         headerObj[key] = value;
       });
 
-      // Prepare request body
+      // Prepare request body based on mode
       let requestBody: unknown = undefined;
-      if (["POST", "PUT", "PATCH"].includes(method) && body.trim()) {
-        const interpolatedBody = interpolate(body, variables);
-        try {
-          requestBody = JSON.parse(interpolatedBody);
-          if (!headerObj["Content-Type"]) {
-            headerObj["Content-Type"] = "application/json";
+      if (["POST", "PUT", "PATCH"].includes(method) && body.mode !== "none") {
+        // Set content type if not already set
+        const contentType = getContentTypeForBody(body);
+        if (contentType && !headerObj["Content-Type"] && body.mode !== "form-data") {
+          headerObj["Content-Type"] = contentType;
+        }
+
+        if (body.mode === "json" || body.mode === "xml" || body.mode === "raw") {
+          const interpolatedBody = interpolate(body.raw, variables);
+          if (body.mode === "json" && interpolatedBody.trim()) {
+            try {
+              requestBody = JSON.parse(interpolatedBody);
+            } catch {
+              requestBody = interpolatedBody;
+            }
+          } else {
+            requestBody = interpolatedBody;
           }
-        } catch {
-          requestBody = interpolatedBody;
+        } else if (body.mode === "form-data" || body.mode === "x-www-form-urlencoded") {
+          const formData: Record<string, string> = {};
+          body.formData
+            .filter((f) => f.active && f.key)
+            .forEach((f) => {
+              formData[interpolate(f.key, variables)] = interpolate(f.value, variables);
+            });
+          requestBody = { _formData: formData, _formMode: body.mode };
         }
       }
 
@@ -368,22 +396,7 @@ export default function Home() {
               )}
 
               {activeTab === "body" && (
-                <div className="h-48 border border-zinc-700 rounded overflow-hidden">
-                  <Editor
-                    height="100%"
-                    defaultLanguage="json"
-                    theme="vs-dark"
-                    value={body}
-                    onChange={(value) => setBody(value || "")}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 13,
-                      lineNumbers: "on",
-                      scrollBeyondLastLine: false,
-                      automaticLayout: true,
-                    }}
-                  />
-                </div>
+                <BodyEditor body={body} onChange={setBody} />
               )}
 
               {activeTab === "scripts" && (

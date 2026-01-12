@@ -1,0 +1,2 @@
+Defect 1 - [FIXED] The environment variable created is lost after page refresh. make sure it is persisted correctly.
+Defect 2 - [FIXED] i create 2 requests in a collection. Clicking the second requet in collection, doesnt load the second request, instead it always loads first one
