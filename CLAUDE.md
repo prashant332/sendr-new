@@ -1,22 +1,52 @@
-# CLAUDE.md
+# Sendr - Web-Based API Client
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file serves as the single source of truth for product requirements, technical documentation, and progress tracking.
 
-## Project Overview
+---
 
-Sendr is a browser-based API testing tool (similar to Postman) that uses a "Passthrough Proxy" architecture to bypass CORS restrictions. The client handles UI and scripting, while a Node.js server acts as the HTTP agent for making actual API calls.
+## 1. Project Overview
 
-## Tech Stack
+**Sendr** is a browser-based API testing tool (similar to Postman) that uses a "Passthrough Proxy" architecture to bypass CORS restrictions.
 
-- **Frontend:** Next.js 16 (App Router), React, TypeScript
-- **Styling:** Tailwind CSS
-- **State Management:** Zustand (with IndexedDB persistence)
-- **Storage:** Dexie.js (IndexedDB wrapper)
-- **Code Editor:** @monaco-editor/react
-- **HTTP Client:** axios (server-side)
+**Goal:** Build a browser-based API testing tool with request organization (Collections) and automated workflow testing (Runner).
 
-## Development Commands
+**Core Constraint:** Browsers cannot make direct cross-origin requests to arbitrary APIs due to CORS. The solution uses a server-side proxy.
 
+**Target User:** Developers who need to test APIs and validate complex API chains without installing local software.
+
+---
+
+## 2. Technical Architecture
+
+### 2.1 High-Level Architecture
+1. **Client (Frontend):** Handles UI, state management, script sandboxing, and workflow execution logic.
+2. **Server (Proxy):** Next.js API route acting as HTTP Agent - forwards requests to target APIs and returns responses.
+3. **Persistence Layer:** IndexedDB via Dexie.js - stores Collections, Requests, Environments, and Settings locally.
+
+### 2.2 Technology Stack
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 16 (App Router), React, TypeScript |
+| Styling | Tailwind CSS |
+| State Management | Zustand (with IndexedDB persistence) |
+| Storage | Dexie.js (IndexedDB wrapper) |
+| Code Editor | @monaco-editor/react |
+| HTTP Client | axios (server-side) |
+| Scripting | Function constructor with sandboxed `pm` API |
+
+### 2.3 Passthrough Proxy Pattern
+All API requests go through `/api/proxy`. The proxy:
+1. Receives request details (method, url, headers, body)
+2. Strips browser-restricted headers (Host, Origin, Referer)
+3. Handles different body types (JSON, XML, form-data, x-www-form-urlencoded)
+4. Executes HTTP call server-side with axios
+5. Returns response with timing and size metadata
+
+---
+
+## 3. Development
+
+### 3.1 Commands
 ```bash
 npm run dev      # Start development server (http://localhost:3000)
 npm run build    # Build for production
@@ -24,62 +54,53 @@ npm run start    # Start production server
 npm run lint     # Run ESLint
 ```
 
-## Architecture
+### 3.2 Project Structure
+```
+src/
+├── app/
+│   ├── api/proxy/route.ts    # Proxy API endpoint
+│   └── page.tsx              # Main UI component
+├── components/
+│   ├── BodyEditor.tsx        # Request body editor with mode selector
+│   ├── KeyValueEditor.tsx    # Reusable key-value pair editor
+│   ├── Sidebar.tsx           # Collections tree view
+│   ├── WorkflowRunner.tsx    # Collection runner UI
+│   ├── EnvironmentSelector.tsx
+│   ├── EnvironmentManager.tsx
+│   ├── CreateCollectionModal.tsx
+│   └── SaveRequestModal.tsx
+├── hooks/
+│   └── useCollections.ts     # CRUD hooks for collections/requests
+├── lib/
+│   ├── db.ts                 # Dexie database schema
+│   ├── interpolate.ts        # Variable interpolation
+│   ├── scriptRunner.ts       # Script execution with pm API
+│   └── workflowRunner.ts     # Collection runner engine
+└── store/
+    └── environmentStore.ts   # Zustand store (IndexedDB persisted)
+```
 
-### Passthrough Proxy Pattern
-All API requests from the browser go through `/api/proxy` on the backend. The frontend never makes direct `fetch` calls to target APIs. The proxy:
-1. Receives resolved request details (method, url, headers, body)
-2. Strips browser-restricted headers (Host, Origin, Referer)
-3. Handles different body types (JSON, XML, form-data, x-www-form-urlencoded)
-4. Executes the HTTP call server-side with axios
-5. Returns the response with timing and size metadata
+---
 
-### Scripting Sandbox
-User scripts (pre-request and test scripts) run in a sandboxed Function constructor. The `pm` object API mimics Postman:
-- `pm.environment.get(key)` / `pm.environment.set(key, value)`
-- `pm.response.json()` (test scripts only)
-- `pm.test(testName, callback)`
+## 4. Data Models
 
-### Variable Interpolation
-Variables use `{{variable_name}}` syntax and are resolved from the active Environment before sending requests. Interpolation applies to URL, headers, params, and body.
-
-### Data Persistence
-All data is persisted to IndexedDB using Dexie.js:
-- **Collections** - Groups of related requests
-- **Requests** - Saved API requests with all configuration
-- **Environments** - Named sets of variables
-- **Settings** - App settings like active environment
-
-## Key Files
-
-### Core
-- `src/app/api/proxy/route.ts` - Proxy API endpoint (handles all body types)
-- `src/app/page.tsx` - Main UI component with request editor
-- `src/lib/db.ts` - Dexie database schema and interfaces
-
-### State & Storage
-- `src/store/environmentStore.ts` - Zustand store for environments (persisted to IndexedDB)
-- `src/hooks/useCollections.ts` - CRUD hooks for collections and requests
-
-### Utilities
-- `src/lib/interpolate.ts` - Variable interpolation utility
-- `src/lib/scriptRunner.ts` - Script execution with pm API
-- `src/lib/workflowRunner.ts` - Collection runner engine for sequential execution
-
-### Components
-- `src/components/Sidebar.tsx` - Collections tree view with run button
-- `src/components/BodyEditor.tsx` - Request body editor with mode selector
-- `src/components/KeyValueEditor.tsx` - Reusable key-value pair editor
-- `src/components/EnvironmentSelector.tsx` - Environment dropdown
-- `src/components/EnvironmentManager.tsx` - Environment CRUD modal
-- `src/components/CreateCollectionModal.tsx` - New collection modal
-- `src/components/SaveRequestModal.tsx` - Save request to collection modal
-- `src/components/WorkflowRunner.tsx` - Collection runner UI with progress
-
-## Core Data Models
-
-### RequestBody
+### 4.1 Environment
 ```typescript
+interface Environment {
+  id: string;
+  name: string;
+  variables: Record<string, string>;
+}
+```
+
+### 4.2 Collection & Request
+```typescript
+interface Collection {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
 type BodyMode = "none" | "json" | "xml" | "form-data" | "x-www-form-urlencoded" | "raw";
 
 interface RequestBody {
@@ -87,10 +108,7 @@ interface RequestBody {
   raw: string;
   formData: { key: string; value: string; active: boolean }[];
 }
-```
 
-### SavedRequest
-```typescript
 interface SavedRequest {
   id: string;
   collectionId: string;
@@ -105,24 +123,149 @@ interface SavedRequest {
 }
 ```
 
-### Environment
+### 4.3 Workflow Runner
 ```typescript
-interface Environment {
-  id: string;
-  name: string;
-  variables: Record<string, string>;
+interface RunnerConfig {
+  collectionId: string;
+  initialVariables: Record<string, string>;
+  delay: number;
+  stopOnError: boolean;
+}
+
+interface RequestResult {
+  requestId: string;
+  requestName: string;
+  method: string;
+  url: string;
+  statusCode: number;
+  statusText: string;
+  duration: number;
+  testResults: { name: string; passed: boolean; error?: string }[];
+  logs: string[];
+  error?: string;
+}
+
+interface RunSummary {
+  collectionId: string;
+  collectionName: string;
+  totalRequests: number;
+  completedRequests: number;
+  failedRequests: number;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  results: RequestResult[];
+  startTime: number;
+  endTime?: number;
 }
 ```
 
-## Implementation Status
+---
 
-### Completed Features
-- [x] Phase 1: Basic proxy and single-request UI
-- [x] Phase 2: Monaco Editor, tabs (Params, Headers, Body, Scripts)
-- [x] Phase 3: Environment variables with interpolation
-- [x] Phase 4: Scripting engine with pm API
-- [x] Phase 5: Collections with IndexedDB persistence
-- [x] Phase 6: Workflow Runner (Collection Runner)
-- [x] Multiple body types (JSON, XML, form-data, x-www-form-urlencoded, raw)
-- [x] Environment persistence to IndexedDB
+## 5. Features
+
+### 5.1 Passthrough Proxy
+- **Endpoint:** `POST /api/proxy`
+- **Body Types:** JSON, XML, raw text, form-data (multipart), x-www-form-urlencoded
+- **Error Handling:** Network errors returned as JSON, not 500 errors
+
+### 5.2 Variable Interpolation
+- **Syntax:** `{{variable_name}}`
+- **Applies to:** URL, Headers, Params, Body
+- **Workflow Scope:** Variables set in Request A available in Request B
+
+### 5.3 Scripting Sandbox
+Sandboxed `pm` API mimicking Postman:
+```javascript
+pm.environment.get(key)           // Get variable
+pm.environment.set(key, value)    // Set variable
+pm.response.json()                // Get response (test scripts only)
+pm.test(name, callback)           // Define test assertion
+```
+
+### 5.4 Collection Management
+- Sidebar tree view (Collections → Requests)
+- Create/Delete Collections and Requests
+- Auto-save changes to IndexedDB
+- Click to load request into editor
+
+### 5.5 Workflow Runner
+- Sequential execution of all requests in a collection
+- Variable chaining between requests
+- Progress bar and expandable results
+- Test pass/fail indicators and console logs
+
+### 5.6 Request Body Types
+| Mode | Description |
+|------|-------------|
+| none | No body |
+| json | JSON with syntax highlighting |
+| xml | XML with syntax highlighting |
+| form-data | multipart/form-data (key-value) |
+| x-www-form-urlencoded | URL encoded form data |
+| raw | Plain text |
+
+---
+
+## 6. Implementation Progress
+
+### Phase 1: Skeleton & Proxy (MVP) ✅
+- [x] Next.js project with TypeScript and Tailwind
+- [x] Proxy API route at `/api/proxy`
+- [x] Basic UI (URL bar, Method select, Send button, Response display)
+
+### Phase 2: Editor Experience ✅
+- [x] Monaco Editor for Body and Response
+- [x] Tabs (Params, Headers, Body, Scripts)
+- [x] KeyValueEditor component
+
+### Phase 3: Environment Variables ✅
+- [x] Zustand store for environments
+- [x] Environment selector dropdown
+- [x] Environment manager modal (CRUD)
+- [x] Variable interpolation (`{{key}}` replacement)
+
+### Phase 4: Scripting Engine ✅
+- [x] Script runner with `pm` API
+- [x] Pre-request and test script editors
+- [x] Test results display
+
+### Phase 5: Collections ✅
+- [x] Dexie.js database setup
+- [x] Sidebar with collections tree
+- [x] Create Collection / Save Request modals
+- [x] Load request from sidebar
 - [x] Auto-save for saved requests
+- [x] Environment persistence to IndexedDB
+
+### Phase 6: Workflow Runner ✅
+- [x] Sequential execution engine
+- [x] Variable chaining between requests
+- [x] Runner UI with progress bar
+- [x] Expandable results with test status
+
+### Phase 7: Enhanced Body Types ✅
+- [x] Body mode selector
+- [x] Form data key-value editor
+- [x] Proxy handling for all body types
+
+---
+
+## 7. Bug Fixes
+
+| ID | Description | Status |
+|----|-------------|--------|
+| 1 | Environment variables lost after page refresh | ✅ Fixed |
+| 2 | Clicking second request in collection loads first request | ✅ Fixed |
+
+---
+
+## 8. Future Enhancements
+
+- [ ] Authentication (Bearer token, Basic Auth, OAuth 2.0)
+- [ ] Request History
+- [ ] Import/Export (Postman collection import, JSON export)
+- [ ] Response Tabs (Headers, Cookies, Raw view)
+- [ ] Code Generation (cURL, JavaScript, Python snippets)
+- [ ] WebSocket Support
+- [ ] GraphQL Support
