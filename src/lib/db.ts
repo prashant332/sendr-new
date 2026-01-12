@@ -35,6 +35,25 @@ export interface RequestAuth {
   };
 }
 
+// Response template types for auto-generated UI
+export type TemplateViewType = "auto" | "table" | "cards" | "list" | "keyvalue";
+
+export interface TemplateColumn {
+  key: string;
+  label: string;
+  visible: boolean;
+  type: "string" | "number" | "boolean" | "date" | "url" | "image" | "object";
+}
+
+export interface ResponseTemplate {
+  enabled: boolean;
+  viewType: TemplateViewType;
+  rootPath: string; // JSON path to data (e.g., "data.items" or "" for root)
+  columns: TemplateColumn[];
+  cardTitleField?: string;
+  cardSubtitleField?: string;
+}
+
 export interface SavedRequest {
   id: string;
   collectionId: string;
@@ -47,6 +66,7 @@ export interface SavedRequest {
   auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
+  responseTemplate?: ResponseTemplate;
 }
 
 export interface Environment {

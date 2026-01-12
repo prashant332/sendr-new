@@ -5,6 +5,7 @@ import Editor from "@monaco-editor/react";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { BodyEditor, createDefaultBody, getContentTypeForBody } from "@/components/BodyEditor";
 import { AuthEditor, createDefaultAuth, applyAuth } from "@/components/AuthEditor";
+import { ResponseVisualizer, createDefaultTemplate } from "@/components/ResponseVisualizer";
 import { EnvironmentSelector } from "@/components/EnvironmentSelector";
 import { EnvironmentManager } from "@/components/EnvironmentManager";
 import { Sidebar } from "@/components/Sidebar";
@@ -15,11 +16,11 @@ import { useEnvironmentStore } from "@/store/environmentStore";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult, ScriptContext } from "@/lib/scriptRunner";
 import { updateRequest, type SavedRequest } from "@/hooks/useCollections";
-import { RequestBody, RequestAuth } from "@/lib/db";
+import { RequestBody, RequestAuth, ResponseTemplate } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 type RequestTab = "params" | "headers" | "auth" | "body" | "scripts";
-type ResponseTab = "body" | "headers" | "cookies" | "raw";
+type ResponseTab = "rendered" | "body" | "headers" | "cookies" | "raw";
 
 interface ApiResponse {
   status: number;
@@ -41,7 +42,7 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | ErrorResponse | null>(null);
-  const [responseTab, setResponseTab] = useState<ResponseTab>("body");
+  const [responseTab, setResponseTab] = useState<ResponseTab>("rendered");
 
   // Request configuration
   const [activeTab, setActiveTab] = useState<RequestTab>("params");
@@ -49,6 +50,7 @@ export default function Home() {
   const [headers, setHeaders] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
   const [body, setBody] = useState<RequestBody>(createDefaultBody());
   const [auth, setAuth] = useState<RequestAuth>(createDefaultAuth());
+  const [responseTemplate, setResponseTemplate] = useState<ResponseTemplate | undefined>(undefined);
 
   // Scripts
   const [preRequestScript, setPreRequestScript] = useState("");
@@ -84,12 +86,13 @@ export default function Home() {
         auth,
         preRequestScript,
         testScript,
+        responseTemplate,
       });
       setSaveStatus("saved");
     } catch {
       setSaveStatus("unsaved");
     }
-  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate]);
 
   // Debounced auto-save
   useEffect(() => {
@@ -102,7 +105,7 @@ export default function Home() {
       saveCurrentRequest();
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, saveCurrentRequest]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate, saveCurrentRequest]);
 
   // Load request from sidebar
   const handleRequestSelect = (request: SavedRequest) => {
@@ -129,6 +132,8 @@ export default function Home() {
     }
     setPreRequestScript(request.preRequestScript);
     setTestScript(request.testScript);
+    // Load response template if saved
+    setResponseTemplate(request.responseTemplate);
     setResponse(null);
     setTestResults([]);
     setScriptError(null);
@@ -152,6 +157,7 @@ export default function Home() {
     setAuth(createDefaultAuth());
     setPreRequestScript("");
     setTestScript("");
+    setResponseTemplate(undefined);
     setResponse(null);
     setTestResults([]);
     setScriptError(null);
@@ -329,6 +335,7 @@ export default function Home() {
   };
 
   const responseTabs: { id: ResponseTab; label: string }[] = [
+    { id: "rendered", label: "Rendered" },
     { id: "body", label: "Body" },
     { id: "headers", label: "Headers" },
     { id: "cookies", label: "Cookies" },
@@ -607,6 +614,14 @@ export default function Home() {
 
                   {/* Response Content */}
                   <div className="h-80">
+                    {responseTab === "rendered" && (
+                      <ResponseVisualizer
+                        data={response.data}
+                        template={responseTemplate}
+                        onTemplateChange={setResponseTemplate}
+                      />
+                    )}
+
                     {responseTab === "body" && (
                       <Editor
                         height="100%"

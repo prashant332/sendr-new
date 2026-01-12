@@ -63,6 +63,7 @@ src/
 ├── components/
 │   ├── AuthEditor.tsx        # Authentication configuration editor
 │   ├── BodyEditor.tsx        # Request body editor with mode selector
+│   ├── ResponseVisualizer.tsx # Auto-generated response UI renderer
 │   ├── KeyValueEditor.tsx    # Reusable key-value pair editor
 │   ├── Sidebar.tsx           # Collections tree view
 │   ├── WorkflowRunner.tsx    # Collection runner UI
@@ -131,6 +132,15 @@ interface RequestAuth {
   };
 }
 
+interface ResponseTemplate {
+  enabled: boolean;
+  viewType: "auto" | "table" | "cards" | "list" | "keyvalue";
+  rootPath: string;
+  columns: { key: string; label: string; visible: boolean; type: string }[];
+  cardTitleField?: string;
+  cardSubtitleField?: string;
+}
+
 interface SavedRequest {
   id: string;
   collectionId: string;
@@ -143,6 +153,7 @@ interface SavedRequest {
   auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
+  responseTemplate?: ResponseTemplate;
 }
 ```
 
@@ -246,10 +257,28 @@ pm.test(name, callback)           // Define test assertion
 ### 5.8 Response Tabs
 | Tab | Description |
 |-----|-------------|
+| Rendered | Auto-generated UI based on JSON structure (default) |
 | Body | Formatted JSON response with syntax highlighting |
 | Headers | Table view of all response headers with header count badge |
 | Cookies | Parsed Set-Cookie headers showing name, value, and attributes |
 | Raw | Unformatted response text with word wrap enabled |
+
+### 5.9 Response Visualizer
+Auto-generates a representable UI for JSON responses based on data structure analysis.
+
+| View Type | When Used |
+|-----------|-----------|
+| Table | Arrays of objects - displays data in sortable columns |
+| Cards | Arrays with title/subtitle fields - displays as card grid |
+| List | Arrays of primitives - displays as simple list |
+| Key-Value | Single objects - displays as property table |
+
+**Features:**
+- Auto-detects data types (string, number, boolean, date, URL, image)
+- Configurable root path for nested data (e.g., `data.items`)
+- Column visibility toggle
+- Templates saved per-request and reused for subsequent responses
+- Smart type rendering: URLs are clickable, images show previews, dates are formatted
 
 ---
 
@@ -309,6 +338,16 @@ pm.test(name, callback)           // Define test assertion
 - [x] Headers tab - Table view of all response headers with count
 - [x] Cookies tab - Parsed Set-Cookie headers with name, value, and attributes
 - [x] Raw tab - Unformatted response with word wrap
+
+### Phase 10: Response Visualizer ✅
+- [x] Auto-detect JSON structure and generate UI template
+- [x] Table view for arrays of objects
+- [x] Cards view for data with title/subtitle fields
+- [x] List view for primitive arrays
+- [x] Key-Value view for single objects
+- [x] Smart type detection (URLs, images, dates, booleans)
+- [x] Template configuration panel (view type, root path, column visibility)
+- [x] Per-request template persistence
 
 ---
 
