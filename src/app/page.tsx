@@ -19,6 +19,7 @@ import { RequestBody, RequestAuth } from "@/lib/db";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 type RequestTab = "params" | "headers" | "auth" | "body" | "scripts";
+type ResponseTab = "body" | "headers" | "cookies" | "raw";
 
 interface ApiResponse {
   status: number;
@@ -40,6 +41,7 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ApiResponse | ErrorResponse | null>(null);
+  const [responseTab, setResponseTab] = useState<ResponseTab>("body");
 
   // Request configuration
   const [activeTab, setActiveTab] = useState<RequestTab>("params");
@@ -291,6 +293,48 @@ export default function Home() {
     return "error" in r;
   };
 
+  // Parse cookies from response headers
+  const parseCookies = (headers: Record<string, string>): { name: string; value: string; attributes: string }[] => {
+    const cookies: { name: string; value: string; attributes: string }[] = [];
+
+    // Look for Set-Cookie headers (case-insensitive)
+    Object.entries(headers).forEach(([key, value]) => {
+      if (key.toLowerCase() === "set-cookie") {
+        // Handle multiple cookies (may be comma-separated or single)
+        const cookieStrings = value.split(/,(?=\s*[^;=]+=[^;]*)/);
+        cookieStrings.forEach((cookieStr) => {
+          const parts = cookieStr.trim().split(";");
+          if (parts.length > 0) {
+            const [nameValue, ...attrs] = parts;
+            const eqIndex = nameValue.indexOf("=");
+            if (eqIndex > 0) {
+              cookies.push({
+                name: nameValue.substring(0, eqIndex).trim(),
+                value: nameValue.substring(eqIndex + 1).trim(),
+                attributes: attrs.map((a) => a.trim()).join("; "),
+              });
+            }
+          }
+        });
+      }
+    });
+
+    return cookies;
+  };
+
+  // Get raw response as string
+  const getRawResponse = (data: unknown): string => {
+    if (typeof data === "string") return data;
+    return JSON.stringify(data, null, 2);
+  };
+
+  const responseTabs: { id: ResponseTab; label: string }[] = [
+    { id: "body", label: "Body" },
+    { id: "headers", label: "Headers" },
+    { id: "cookies", label: "Cookies" },
+    { id: "raw", label: "Raw" },
+  ];
+
   const tabs: { id: RequestTab; label: string }[] = [
     { id: "params", label: "Params" },
     { id: "headers", label: "Headers" },
@@ -518,6 +562,7 @@ export default function Home() {
                 </div>
               ) : (
                 <>
+                  {/* Response Status Bar */}
                   <div className="flex items-center gap-4 px-4 py-3 border-b border-zinc-800 text-sm">
                     <span
                       className={`font-medium ${
@@ -537,21 +582,121 @@ export default function Home() {
                         : `${response.size} B`}
                     </span>
                   </div>
+
+                  {/* Response Tabs */}
+                  <div className="flex border-b border-zinc-800">
+                    {responseTabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setResponseTab(tab.id)}
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          responseTab === tab.id
+                            ? "text-blue-400 border-b-2 border-blue-400"
+                            : "text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {tab.label}
+                        {tab.id === "cookies" && (() => {
+                          const cookies = parseCookies(response.headers);
+                          return cookies.length > 0 ? ` (${cookies.length})` : "";
+                        })()}
+                        {tab.id === "headers" && ` (${Object.keys(response.headers).length})`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Response Content */}
                   <div className="h-80">
-                    <Editor
-                      height="100%"
-                      defaultLanguage="json"
-                      theme="vs-dark"
-                      value={JSON.stringify(response.data, null, 2)}
-                      options={{
-                        readOnly: true,
-                        minimap: { enabled: false },
-                        fontSize: 13,
-                        lineNumbers: "on",
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                      }}
-                    />
+                    {responseTab === "body" && (
+                      <Editor
+                        height="100%"
+                        defaultLanguage="json"
+                        theme="vs-dark"
+                        value={JSON.stringify(response.data, null, 2)}
+                        options={{
+                          readOnly: true,
+                          minimap: { enabled: false },
+                          fontSize: 13,
+                          lineNumbers: "on",
+                          scrollBeyondLastLine: false,
+                          automaticLayout: true,
+                        }}
+                      />
+                    )}
+
+                    {responseTab === "headers" && (
+                      <div className="p-4 overflow-auto h-full">
+                        {Object.keys(response.headers).length === 0 ? (
+                          <div className="text-zinc-500 text-sm">No headers in response</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-zinc-700">
+                                <th className="text-left py-2 pr-4 text-zinc-400 font-medium">Header</th>
+                                <th className="text-left py-2 text-zinc-400 font-medium">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(response.headers).map(([key, value]) => (
+                                <tr key={key} className="border-b border-zinc-800">
+                                  <td className="py-2 pr-4 text-blue-400 font-mono">{key}</td>
+                                  <td className="py-2 text-zinc-300 font-mono break-all">{value}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+
+                    {responseTab === "cookies" && (
+                      <div className="p-4 overflow-auto h-full">
+                        {(() => {
+                          const cookies = parseCookies(response.headers);
+                          if (cookies.length === 0) {
+                            return <div className="text-zinc-500 text-sm">No cookies in response</div>;
+                          }
+                          return (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-zinc-700">
+                                  <th className="text-left py-2 pr-4 text-zinc-400 font-medium">Name</th>
+                                  <th className="text-left py-2 pr-4 text-zinc-400 font-medium">Value</th>
+                                  <th className="text-left py-2 text-zinc-400 font-medium">Attributes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cookies.map((cookie, index) => (
+                                  <tr key={index} className="border-b border-zinc-800">
+                                    <td className="py-2 pr-4 text-blue-400 font-mono">{cookie.name}</td>
+                                    <td className="py-2 pr-4 text-zinc-300 font-mono break-all">{cookie.value}</td>
+                                    <td className="py-2 text-zinc-500 font-mono text-xs">{cookie.attributes || "-"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {responseTab === "raw" && (
+                      <Editor
+                        height="100%"
+                        defaultLanguage="text"
+                        theme="vs-dark"
+                        value={getRawResponse(response.data)}
+                        options={{
+                          readOnly: true,
+                          minimap: { enabled: false },
+                          fontSize: 13,
+                          lineNumbers: "off",
+                          scrollBeyondLastLine: false,
+                          automaticLayout: true,
+                          wordWrap: "on",
+                        }}
+                      />
+                    )}
                   </div>
                 </>
               )}
