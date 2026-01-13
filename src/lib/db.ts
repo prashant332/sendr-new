@@ -80,11 +80,36 @@ export interface AppSettings {
   activeEnvironmentId: string | null;
 }
 
+// AI Provider Types
+export type AIProviderType = "openai" | "gemini" | "anthropic" | "ollama" | "custom";
+
+export interface LLMProvider {
+  id: string;
+  name: string;
+  type: AIProviderType;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+  isDefault: boolean;
+  createdAt: number;
+}
+
+export interface AISettings {
+  id: string;
+  providers: LLMProvider[];
+  defaultProviderId: string | null;
+  enableAutoSuggestions: boolean;
+  includeResponseSample: boolean;
+  maxTokens: number;
+  temperature: number;
+}
+
 const db = new Dexie("SendrDB") as Dexie & {
   collections: EntityTable<Collection, "id">;
   requests: EntityTable<SavedRequest, "id">;
   environments: EntityTable<Environment, "id">;
   settings: EntityTable<AppSettings, "id">;
+  aiSettings: EntityTable<AISettings, "id">;
 };
 
 db.version(2).stores({
@@ -92,6 +117,15 @@ db.version(2).stores({
   requests: "id, collectionId, name",
   environments: "id, name",
   settings: "id",
+});
+
+// Version 3: Add AI settings table
+db.version(3).stores({
+  collections: "id, name, createdAt",
+  requests: "id, collectionId, name",
+  environments: "id, name",
+  settings: "id",
+  aiSettings: "id",
 });
 
 export { db };

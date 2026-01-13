@@ -12,11 +12,15 @@ import { Sidebar } from "@/components/Sidebar";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { SaveRequestModal } from "@/components/SaveRequestModal";
 import { WorkflowRunner } from "@/components/WorkflowRunner";
+import AIScriptAssistant from "@/components/AIScriptAssistant";
+import QuickActions from "@/components/QuickActions";
 import { useEnvironmentStore } from "@/store/environmentStore";
+import { useAIStore } from "@/store/aiStore";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult, ScriptContext } from "@/lib/scriptRunner";
 import { updateRequest, type SavedRequest } from "@/hooks/useCollections";
 import { RequestBody, RequestAuth, ResponseTemplate } from "@/lib/db";
+import { ScriptType } from "@/lib/ai/types";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 type RequestTab = "params" | "headers" | "auth" | "body" | "scripts";
@@ -63,6 +67,8 @@ export default function Home() {
   const [showCreateCollection, setShowCreateCollection] = useState(false);
   const [showSaveRequest, setShowSaveRequest] = useState(false);
   const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string } | null>(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [activeScriptTab, setActiveScriptTab] = useState<ScriptType>("test");
 
   // Active request tracking
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
@@ -71,6 +77,31 @@ export default function Home() {
   // Get store methods
   const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
   const setVariables = useEnvironmentStore((state) => state.setVariables);
+
+  // Initialize AI store
+  const { initialize: initializeAI, isInitialized: isAIInitialized } = useAIStore();
+
+  useEffect(() => {
+    if (!isAIInitialized) {
+      initializeAI();
+    }
+  }, [isAIInitialized, initializeAI]);
+
+  // Handle AI-generated script insertion
+  const handleInsertScript = (script: string, scriptType: ScriptType) => {
+    if (scriptType === "test") {
+      setTestScript((prev) => (prev ? `${prev}\n\n${script}` : script));
+    } else {
+      setPreRequestScript((prev) => (prev ? `${prev}\n\n${script}` : script));
+    }
+    setShowAIAssistant(false);
+  };
+
+  // Handle quick action selection
+  const handleQuickAction = (prompt: string, scriptType: ScriptType) => {
+    setActiveScriptTab(scriptType);
+    setShowAIAssistant(true);
+  };
 
   // Auto-save for saved requests
   const saveCurrentRequest = useCallback(async () => {
@@ -479,6 +510,17 @@ export default function Home() {
 
               {activeTab === "scripts" && (
                 <div className="space-y-4">
+                  {/* AI Generate Button */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowAIAssistant(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium transition-colors"
+                    >
+                      <span>✨</span>
+                      AI Generate
+                    </button>
+                  </div>
+
                   <div>
                     <div className="text-sm text-zinc-400 mb-2">Pre-request Script</div>
                     <div className="h-32 border border-zinc-700 rounded overflow-hidden">
@@ -516,6 +558,14 @@ export default function Home() {
                         }}
                       />
                     </div>
+                    {/* Quick Actions for Test Scripts */}
+                    {response && !isErrorResponse(response) && (
+                      <QuickActions
+                        response={response.data}
+                        onSelectAction={handleQuickAction}
+                        scriptType="test"
+                      />
+                    )}
                   </div>
                   <div className="text-xs text-zinc-500">
                     Available: pm.environment.get(key), pm.environment.set(key, value),
@@ -741,6 +791,16 @@ export default function Home() {
           onClose={() => setRunnerCollection(null)}
         />
       )}
+      <AIScriptAssistant
+        isOpen={showAIAssistant}
+        onClose={() => setShowAIAssistant(false)}
+        onInsertScript={handleInsertScript}
+        response={response && !isErrorResponse(response) ? response.data : null}
+        environmentVariables={getActiveVariables()}
+        requestDetails={{ method, url }}
+        existingPreRequestScript={preRequestScript}
+        existingTestScript={testScript}
+      />
     </div>
   );
 }

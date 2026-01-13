@@ -358,6 +358,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 | 1 | Environment variables lost after page refresh | ✅ Fixed |
 | 2 | Clicking second request in collection loads first request | ✅ Fixed |
 | 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed |
+| 4 | Adding new environment doesnt to anything when i try to clice '+' button from Manage environment option. This happens when running in docker, running in dev mode seems to work. | |
 
 ---
 
@@ -370,6 +371,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - [ ] WebSocket Support
 - [ ] GraphQL Support
 - [ ] Protocol Buffers / gRPC Support (see Section 9)
+- [ ] AI powered script generation
 
 ---
 
@@ -1753,4 +1755,897 @@ sendr/
 ├── CHANGELOG.md
 ├── LICENSE
 └── README.md                   # Installation instructions
+```
+
+---
+
+## 11. AI-Powered Script Generation
+
+### 11.1 Overview
+
+**Goal:** Enable users to generate pre-request and test scripts using natural language prompts, powered by any LLM provider.
+
+**Example Prompts:**
+- "Filter offers from response and save the cheapest one under $100 to `cheapOffer` variable"
+- "Extract the auth token from response headers and set it as `authToken`"
+- "Assert that all items in the response have a status of 'active'"
+- "Loop through users and find the one with email containing 'admin'"
+
+**Key Principles:**
+1. **Provider Agnostic** - Support multiple LLM providers (OpenAI, Anthropic, Ollama, etc.)
+2. **Context-Aware** - LLM understands the response structure and available APIs
+3. **Secure** - API keys stored locally, never sent to Sendr servers
+4. **Iterative** - Users can refine generated scripts through conversation
+
+### 11.2 Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         User Interface                              │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  "Filter offers under $100 and save cheapest to variable"     │  │
+│  │  [Generate Script]                                            │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Context Builder                                │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐   │
+│  │  Response JSON  │ │  pm API Docs    │ │  Environment Vars   │   │
+│  │  (Schema/Sample)│ │  (Reference)    │ │  (Available)        │   │
+│  └─────────────────┘ └─────────────────┘ └─────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      LLM Provider Adapter                           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
+│  │  OpenAI  │ │ Anthropic│ │  Ollama  │ │  Gemini  │ │  Custom  │  │
+│  │  GPT-4   │ │  Claude  │ │  (Local) │ │          │ │  (API)   │  │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Script Validator                               │
+│  - Syntax validation (parse without executing)                      │
+│  - Security checks (no dangerous operations)                        │
+│  - pm API usage validation                                          │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Generated Script                               │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  const response = pm.response.json();                         │  │
+│  │  const cheapOffers = response.offers.filter(o => o.price<100);│  │
+│  │  const cheapest = cheapOffers.sort((a,b) => a.price-b.price); │  │
+│  │  pm.environment.set("cheapOffer", JSON.stringify(cheapest[0]));│ │
+│  └───────────────────────────────────────────────────────────────┘  │
+│  [Insert to Script] [Refine] [Explain]                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.3 Data Models
+
+```typescript
+// LLM Provider Configuration
+interface LLMProvider {
+  id: string;
+  name: string;                    // "OpenAI", "Anthropic", "Ollama"
+  type: "openai" | "anthropic" | "ollama" | "custom";
+  baseUrl: string;                 // API endpoint
+  model: string;                   // "gpt-4", "claude-3-opus", "llama3"
+  apiKey?: string;                 // Encrypted, stored locally
+  isDefault: boolean;
+}
+
+// Script Generation Request
+interface ScriptGenerationRequest {
+  prompt: string;                  // User's natural language request
+  scriptType: "pre-request" | "test";
+  context: ScriptContext;
+  conversationHistory?: Message[]; // For refinement/follow-ups
+}
+
+// Context provided to LLM
+interface ScriptContext {
+  responseSchema?: JSONSchema;     // Inferred from actual response
+  responseSample?: unknown;        // Actual response data (truncated)
+  environmentVariables: string[];  // Available variable names
+  existingScript?: string;         // Current script (for modifications)
+  requestDetails: {
+    method: string;
+    url: string;
+    isGrpc: boolean;
+  };
+}
+
+// Generation Result
+interface ScriptGenerationResult {
+  script: string;                  // Generated JavaScript code
+  explanation: string;             // What the script does
+  warnings?: string[];             // Potential issues
+  suggestions?: string[];          // Alternative approaches
+}
+
+// Conversation for refinement
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+// Stored in IndexedDB
+interface AISettings {
+  id: "ai-settings";
+  providers: LLMProvider[];
+  defaultProviderId: string;
+  enableAutoSuggestions: boolean;  // Suggest scripts based on response
+  maxTokens: number;
+  temperature: number;
+}
+```
+
+### 11.4 LLM Provider Adapters
+
+```typescript
+// Base adapter interface
+interface LLMAdapter {
+  name: string;
+  generateScript(request: ScriptGenerationRequest): Promise<ScriptGenerationResult>;
+  testConnection(): Promise<boolean>;
+}
+
+// OpenAI Adapter
+class OpenAIAdapter implements LLMAdapter {
+  name = "OpenAI";
+
+  async generateScript(request: ScriptGenerationRequest): Promise<ScriptGenerationResult> {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: this.buildMessages(request),
+        temperature: 0.2,  // Low for code generation
+        max_tokens: 1000
+      })
+    });
+    return this.parseResponse(await response.json());
+  }
+}
+
+// Anthropic Adapter
+class AnthropicAdapter implements LLMAdapter {
+  name = "Anthropic";
+
+  async generateScript(request: ScriptGenerationRequest): Promise<ScriptGenerationResult> {
+    const response = await fetch(`${this.baseUrl}/messages`, {
+      method: "POST",
+      headers: {
+        "x-api-key": this.apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: 1000,
+        system: this.buildSystemPrompt(),
+        messages: this.buildMessages(request)
+      })
+    });
+    return this.parseResponse(await response.json());
+  }
+}
+
+// Ollama Adapter (Local LLM)
+class OllamaAdapter implements LLMAdapter {
+  name = "Ollama";
+
+  async generateScript(request: ScriptGenerationRequest): Promise<ScriptGenerationResult> {
+    const response = await fetch(`${this.baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.model,
+        prompt: this.buildPrompt(request),
+        stream: false
+      })
+    });
+    return this.parseResponse(await response.json());
+  }
+}
+
+// Custom/Generic OpenAI-compatible Adapter
+class CustomAdapter implements LLMAdapter {
+  name = "Custom";
+  // Works with any OpenAI-compatible API (Azure, Together, Groq, etc.)
+}
+```
+
+### 11.5 System Prompt Design
+
+```typescript
+const SYSTEM_PROMPT = `You are an expert JavaScript developer specializing in API testing scripts.
+You generate scripts for Sendr, an API testing tool similar to Postman.
+
+## Available API (pm object)
+
+### Environment Variables
+- pm.environment.get(key: string): string | undefined
+- pm.environment.set(key: string, value: string): void
+
+### Response (Test Scripts Only)
+- pm.response.json(): any - Parse response body as JSON
+- pm.response.text(): string - Get response body as text
+- pm.response.status: number - HTTP status code
+- pm.response.headers: Record<string, string> - Response headers
+
+### For gRPC:
+- pm.response.metadata(key?: string): Record<string, string> | string
+- pm.response.trailers(key?: string): Record<string, string> | string
+- pm.response.status.code: number - gRPC status code (0-16)
+- pm.response.status.details: string - Status message
+
+### Testing (Test Scripts Only)
+- pm.test(name: string, fn: () => void): void - Define a test
+- pm.expect(value: any): Chai.Assertion - Chai assertion
+
+## Response Data Structure
+{responseSchema}
+
+## Sample Response Data
+{responseSample}
+
+## Available Environment Variables
+{environmentVariables}
+
+## Rules
+1. Generate clean, readable JavaScript code
+2. Always use const/let, never var
+3. Handle edge cases (null checks, empty arrays)
+4. Use descriptive variable names
+5. Add brief comments for complex logic
+6. For test scripts, use pm.test() for assertions
+7. Store complex objects as JSON strings in environment variables
+8. Never use console.log (use pm.test for validation instead)
+
+## Output Format
+Respond with:
+1. The JavaScript code in a code block
+2. A brief explanation of what the script does
+3. Any warnings or suggestions (optional)`;
+```
+
+### 11.6 UI Components
+
+#### 11.6.1 AI Script Assistant Panel
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  AI Script Assistant                                    [Settings] │
+├────────────────────────────────────────────────────────────────────┤
+│  Provider: [OpenAI GPT-4 ▼]                                        │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  Describe what you want the script to do...                  │  │
+│  │                                                              │  │
+│  │  "Filter offers under $100 and save the cheapest one to      │  │
+│  │   an environment variable called 'cheapOffer'"               │  │
+│  │                                                              │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│  [Generate Test Script]  [Generate Pre-Request Script]             │
+│                                                                    │
+│  ─────────────────────────────────────────────────────────────────│
+│                                                                    │
+│  Generated Script:                                                 │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  // Filter offers under $100 and find the cheapest          │  │
+│  │  const response = pm.response.json();                        │  │
+│  │  const cheapOffers = response.offers                         │  │
+│  │    .filter(offer => offer.price < 100)                       │  │
+│  │    .sort((a, b) => a.price - b.price);                       │  │
+│  │                                                              │  │
+│  │  if (cheapOffers.length > 0) {                               │  │
+│  │    pm.environment.set("cheapOffer",                          │  │
+│  │      JSON.stringify(cheapOffers[0]));                        │  │
+│  │  }                                                           │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Explanation: This script filters the offers array to find        │
+│  items priced under $100, sorts them by price ascending, and      │
+│  saves the cheapest one to the 'cheapOffer' environment variable. │
+│                                                                    │
+│  [Insert into Script] [Copy] [Refine...]                          │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### 11.6.2 Inline Script Generation (Contextual)
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ [Params] [Headers] [Body] [Auth] [Scripts]                         │
+├────────────────────────────────────────────────────────────────────┤
+│  Test Script                                      [✨ AI Generate] │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                                                              │  │
+│  │  // Your test script here...                                 │  │
+│  │                                                              │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Quick Actions (based on response):                                │
+│  [Extract auth token] [Save user ID] [Assert status 200]          │
+│  [Validate response schema] [Store for next request]               │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### 11.6.3 AI Settings Modal
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  AI Assistant Settings                                      [X]    │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  LLM Providers                                          [+ Add]    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  ⚫ OpenAI                                                    │  │
+│  │     Model: gpt-4-turbo                                       │  │
+│  │     API Key: sk-****************************abcd             │  │
+│  │     [Test Connection] [Edit] [🗑]                    [Default]│  │
+│  │                                                              │  │
+│  │  ○ Anthropic                                                 │  │
+│  │     Model: claude-3-opus-20240229                            │  │
+│  │     API Key: sk-ant-**********************wxyz              │  │
+│  │     [Test Connection] [Edit] [🗑]                            │  │
+│  │                                                              │  │
+│  │  ○ Ollama (Local)                                            │  │
+│  │     Model: llama3:8b                                         │  │
+│  │     URL: http://localhost:11434                              │  │
+│  │     [Test Connection] [Edit] [🗑]                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Options                                                           │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  [✓] Enable quick action suggestions based on response       │  │
+│  │  [✓] Include response sample in context (recommended)        │  │
+│  │  [ ] Auto-generate test assertions for new requests          │  │
+│  │                                                              │  │
+│  │  Temperature: [0.2        ] (lower = more deterministic)     │  │
+│  │  Max Tokens:  [1000       ]                                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Privacy Note: API keys are stored locally in your browser.        │
+│  Response data sent to LLM is truncated to protect sensitive info. │
+│                                                                    │
+│                                                  [Save Settings]   │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### 11.6.4 Add Provider Modal
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Add LLM Provider                                           [X]    │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  Provider Type:                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  (•) OpenAI          ( ) Anthropic       ( ) Ollama          │  │
+│  │  ( ) Azure OpenAI    ( ) Google Gemini   ( ) Custom API      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Configuration:                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  Name:     [My OpenAI                               ]        │  │
+│  │  API Key:  [sk-...                                  ] [Show] │  │
+│  │  Model:    [gpt-4-turbo                          ▼]          │  │
+│  │  Base URL: [https://api.openai.com/v1             ]          │  │
+│  │            (Change for proxies or Azure)                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  [Test Connection]                                                 │
+│  ✓ Connection successful! Model: gpt-4-turbo                      │
+│                                                                    │
+│                                         [Cancel]  [Add Provider]   │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.7 Smart Context Building
+
+```typescript
+// Intelligently build context for the LLM
+function buildScriptContext(
+  response: unknown,
+  request: SavedRequest,
+  maxSampleSize: number = 2000
+): ScriptContext {
+
+  // 1. Infer JSON schema from response
+  const responseSchema = inferJSONSchema(response);
+
+  // 2. Create truncated sample (protect sensitive data)
+  const responseSample = truncateAndSanitize(response, maxSampleSize);
+
+  // 3. Get available environment variables
+  const environmentVariables = getAllEnvironmentVariableNames();
+
+  // 4. Include existing script if modifying
+  const existingScript = request.testScript || request.preRequestScript;
+
+  return {
+    responseSchema,
+    responseSample,
+    environmentVariables,
+    existingScript,
+    requestDetails: {
+      method: request.method,
+      url: request.url,
+      isGrpc: !!request.grpcConfig?.enabled
+    }
+  };
+}
+
+// Infer JSON schema from response data
+function inferJSONSchema(data: unknown, depth: number = 3): JSONSchema {
+  if (depth === 0) return { type: "any" };
+
+  if (data === null) return { type: "null" };
+  if (Array.isArray(data)) {
+    return {
+      type: "array",
+      items: data.length > 0 ? inferJSONSchema(data[0], depth - 1) : {}
+    };
+  }
+  if (typeof data === "object") {
+    const properties: Record<string, JSONSchema> = {};
+    for (const [key, value] of Object.entries(data)) {
+      properties[key] = inferJSONSchema(value, depth - 1);
+    }
+    return { type: "object", properties };
+  }
+  return { type: typeof data };
+}
+
+// Truncate large responses and sanitize sensitive data
+function truncateAndSanitize(data: unknown, maxSize: number): unknown {
+  const SENSITIVE_KEYS = ["password", "secret", "token", "apikey", "authorization"];
+
+  function sanitize(obj: unknown, currentSize: number = 0): unknown {
+    if (currentSize > maxSize) return "[truncated]";
+
+    if (Array.isArray(obj)) {
+      // Only include first 3 items of arrays
+      return obj.slice(0, 3).map(item => sanitize(item, currentSize));
+    }
+
+    if (typeof obj === "object" && obj !== null) {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Mask sensitive fields
+        if (SENSITIVE_KEYS.some(s => key.toLowerCase().includes(s))) {
+          result[key] = "[REDACTED]";
+        } else {
+          result[key] = sanitize(value, currentSize + JSON.stringify(value).length);
+        }
+      }
+      return result;
+    }
+
+    // Truncate long strings
+    if (typeof obj === "string" && obj.length > 100) {
+      return obj.substring(0, 100) + "...";
+    }
+
+    return obj;
+  }
+
+  return sanitize(data);
+}
+```
+
+### 11.8 Script Validation
+
+```typescript
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+function validateGeneratedScript(
+  script: string,
+  scriptType: "pre-request" | "test"
+): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // 1. Syntax validation
+  try {
+    new Function(script);
+  } catch (e) {
+    errors.push(`Syntax error: ${e.message}`);
+  }
+
+  // 2. Security checks
+  const dangerousPatterns = [
+    { pattern: /eval\s*\(/, message: "eval() is not allowed" },
+    { pattern: /Function\s*\(/, message: "Function constructor is not allowed" },
+    { pattern: /fetch\s*\(/, message: "fetch() is not available in scripts" },
+    { pattern: /require\s*\(/, message: "require() is not available in scripts" },
+    { pattern: /import\s+/, message: "ES imports are not available in scripts" },
+    { pattern: /process\./, message: "process is not available in scripts" },
+    { pattern: /window\./, message: "window is not available in scripts" },
+    { pattern: /document\./, message: "document is not available in scripts" },
+  ];
+
+  for (const { pattern, message } of dangerousPatterns) {
+    if (pattern.test(script)) {
+      errors.push(message);
+    }
+  }
+
+  // 3. API usage validation
+  if (scriptType === "pre-request") {
+    if (script.includes("pm.response")) {
+      errors.push("pm.response is not available in pre-request scripts");
+    }
+    if (script.includes("pm.test")) {
+      warnings.push("pm.test is typically used in test scripts, not pre-request");
+    }
+  }
+
+  // 4. Best practice warnings
+  if (script.includes("var ")) {
+    warnings.push("Consider using 'const' or 'let' instead of 'var'");
+  }
+  if (script.includes("console.log")) {
+    warnings.push("console.log output won't be visible; use pm.test for validation");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+```
+
+### 11.9 Quick Actions (Auto-Suggested)
+
+```typescript
+// Analyze response and suggest relevant quick actions
+function suggestQuickActions(response: unknown): QuickAction[] {
+  const suggestions: QuickAction[] = [];
+
+  if (typeof response !== "object" || response === null) {
+    return suggestions;
+  }
+
+  const data = response as Record<string, unknown>;
+
+  // Check for common patterns and suggest actions
+
+  // Auth token in response
+  if (data.token || data.access_token || data.accessToken) {
+    suggestions.push({
+      label: "Save auth token",
+      prompt: "Extract the authentication token and save it as 'authToken' environment variable",
+      icon: "key"
+    });
+  }
+
+  // User/ID patterns
+  if (data.id || data.userId || data.user?.id) {
+    suggestions.push({
+      label: "Save ID",
+      prompt: "Save the ID from response to an environment variable",
+      icon: "id"
+    });
+  }
+
+  // Array data
+  const arrayFields = Object.entries(data).filter(([_, v]) => Array.isArray(v));
+  for (const [key, arr] of arrayFields) {
+    if ((arr as unknown[]).length > 0) {
+      suggestions.push({
+        label: `Filter ${key}`,
+        prompt: `Help me filter the ${key} array based on a condition`,
+        icon: "filter"
+      });
+      suggestions.push({
+        label: `Extract from ${key}`,
+        prompt: `Extract specific fields from the ${key} array and save to variable`,
+        icon: "extract"
+      });
+    }
+  }
+
+  // Pagination
+  if (data.page || data.totalPages || data.hasMore || data.nextCursor) {
+    suggestions.push({
+      label: "Handle pagination",
+      prompt: "Save pagination info for the next request",
+      icon: "pages"
+    });
+  }
+
+  // Always available
+  suggestions.push({
+    label: "Assert status 200",
+    prompt: "Create a test that asserts the response status is 200",
+    icon: "check"
+  });
+
+  suggestions.push({
+    label: "Validate schema",
+    prompt: "Create tests to validate the response matches the expected schema",
+    icon: "schema"
+  });
+
+  return suggestions;
+}
+
+interface QuickAction {
+  label: string;
+  prompt: string;
+  icon: string;
+}
+```
+
+### 11.10 Implementation Phases
+
+#### Phase 19: AI Foundation
+- [ ] Create AISettings store with IndexedDB persistence
+- [ ] Implement LLM adapter interface
+- [ ] Create OpenAI adapter
+- [ ] Create Anthropic adapter
+- [ ] Create Ollama adapter (local LLM support)
+- [ ] Build secure API key storage (encrypted in IndexedDB)
+- [ ] Create AI Settings modal UI
+
+#### Phase 20: Script Generation
+- [ ] Design and implement system prompt
+- [ ] Build context builder (schema inference, sanitization)
+- [ ] Create script generation API route (proxy to avoid CORS)
+- [ ] Implement script validation
+- [ ] Create AI Script Assistant panel UI
+- [ ] Add "Insert into Script" functionality
+- [ ] Implement conversation history for refinement
+
+#### Phase 21: Smart Context
+- [ ] Implement JSON schema inference from response
+- [ ] Add response truncation and sanitization
+- [ ] Include environment variables in context
+- [ ] Support gRPC response context
+- [ ] Add existing script context for modifications
+
+#### Phase 22: Quick Actions
+- [ ] Implement response analysis for suggestions
+- [ ] Create quick action suggestion engine
+- [ ] Add quick action buttons to script editor
+- [ ] Pre-fill prompts for common operations
+
+#### Phase 23: Advanced Features
+- [ ] Add "Explain Script" feature (describe existing scripts)
+- [ ] Implement "Fix Script" for error recovery
+- [ ] Add auto-generate assertions option
+- [ ] Create script templates library
+- [ ] Support custom system prompt overrides
+
+### 11.11 API Route for LLM Proxy
+
+```typescript
+// /api/ai/generate/route.ts
+// Proxy LLM requests to avoid CORS and protect API keys
+
+import { NextRequest, NextResponse } from "next/server";
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const { provider, apiKey, model, messages, baseUrl } = body;
+
+  try {
+    let response;
+
+    switch (provider) {
+      case "openai":
+        response = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.2,
+            max_tokens: 1500
+          })
+        });
+        break;
+
+      case "anthropic":
+        response = await fetch(`${baseUrl}/messages`, {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1500,
+            messages
+          })
+        });
+        break;
+
+      case "ollama":
+        response = await fetch(`${baseUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: false
+          })
+        });
+        break;
+
+      default:
+        // Generic OpenAI-compatible API
+        response = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ model, messages, temperature: 0.2 })
+        });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to generate script", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### 11.12 Database Schema Changes
+
+```typescript
+// Add AI settings table
+db.version(3).stores({
+  collections: "id, name, createdAt",
+  requests: "id, collectionId, name",
+  environments: "id, name",
+  settings: "id",
+  protoSchemas: "id, name, path, collectionId, createdAt",
+  aiSettings: "id"  // NEW - single row for AI configuration
+});
+```
+
+### 11.13 File Structure Changes
+
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── proxy/route.ts
+│   │   ├── grpc-proxy/route.ts
+│   │   └── ai/
+│   │       └── generate/route.ts    # NEW: LLM proxy endpoint
+│   └── page.tsx
+├── components/
+│   ├── ... existing components ...
+│   ├── AIScriptAssistant.tsx        # NEW: AI generation panel
+│   ├── AISettingsModal.tsx          # NEW: Provider configuration
+│   ├── QuickActions.tsx             # NEW: Suggested actions
+│   └── AddProviderModal.tsx         # NEW: Add LLM provider
+├── lib/
+│   ├── ... existing libs ...
+│   ├── ai/
+│   │   ├── adapters/
+│   │   │   ├── base.ts              # NEW: Adapter interface
+│   │   │   ├── openai.ts            # NEW: OpenAI adapter
+│   │   │   ├── anthropic.ts         # NEW: Anthropic adapter
+│   │   │   └── ollama.ts            # NEW: Ollama adapter
+│   │   ├── contextBuilder.ts        # NEW: Build LLM context
+│   │   ├── schemaInference.ts       # NEW: Infer JSON schema
+│   │   ├── scriptValidator.ts       # NEW: Validate generated scripts
+│   │   ├── quickActions.ts          # NEW: Suggest actions
+│   │   └── systemPrompt.ts          # NEW: System prompt templates
+└── store/
+    ├── environmentStore.ts
+    └── aiStore.ts                   # NEW: AI settings store
+```
+
+### 11.14 Security Considerations
+
+1. **API Key Storage**
+   - Keys stored in IndexedDB, encrypted with Web Crypto API
+   - Never sent to Sendr servers (all LLM calls via local proxy)
+   - Option to use environment variables for CI/CD
+
+2. **Response Data Privacy**
+   - Response samples truncated before sending to LLM
+   - Sensitive fields (passwords, tokens) automatically redacted
+   - User can disable response context sharing
+
+3. **Generated Script Safety**
+   - All scripts validated before insertion
+   - Dangerous patterns blocked (eval, fetch, etc.)
+   - Scripts run in existing sandbox
+
+4. **Rate Limiting**
+   - Client-side rate limiting to prevent accidental API abuse
+   - Clear feedback on API usage
+
+### 11.15 Example Prompts and Outputs
+
+**Prompt:** "Filter the offers array to find items under $100, sort by price, and save the cheapest to 'bestDeal'"
+
+**Generated Script:**
+```javascript
+// Filter offers under $100 and save the cheapest
+const response = pm.response.json();
+
+const affordableOffers = response.offers
+  .filter(offer => offer.price < 100)
+  .sort((a, b) => a.price - b.price);
+
+if (affordableOffers.length > 0) {
+  const bestDeal = affordableOffers[0];
+  pm.environment.set("bestDeal", JSON.stringify(bestDeal));
+
+  pm.test("Found affordable offer", () => {
+    pm.expect(bestDeal.price).to.be.below(100);
+  });
+} else {
+  pm.test("No affordable offers found", () => {
+    pm.expect.fail("No offers under $100 available");
+  });
+}
+```
+
+---
+
+**Prompt:** "Create tests to verify all users have valid email addresses"
+
+**Generated Script:**
+```javascript
+// Validate all users have valid email addresses
+const response = pm.response.json();
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+pm.test("Response contains users array", () => {
+  pm.expect(response.users).to.be.an("array");
+  pm.expect(response.users.length).to.be.greaterThan(0);
+});
+
+pm.test("All users have valid email addresses", () => {
+  const invalidEmails = response.users.filter(
+    user => !emailRegex.test(user.email)
+  );
+
+  pm.expect(invalidEmails).to.have.lengthOf(
+    0,
+    `Found ${invalidEmails.length} users with invalid emails`
+  );
+});
+
+pm.test("No duplicate email addresses", () => {
+  const emails = response.users.map(u => u.email);
+  const uniqueEmails = new Set(emails);
+  pm.expect(uniqueEmails.size).to.equal(emails.length);
+});
 ```

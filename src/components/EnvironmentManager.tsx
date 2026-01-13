@@ -18,6 +18,7 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
   const selectedEnv = environments.find((env) => env.id === selectedEnvId);
 
   const handleAddEnvironment = () => {
+    console.log("Adding environment:", newEnvName);
     if (!newEnvName.trim()) return;
     addEnvironment(newEnvName.trim());
     setNewEnvName("");
