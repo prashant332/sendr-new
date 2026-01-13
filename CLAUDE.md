@@ -1357,3 +1357,400 @@ src/
 - Load balancing / multiple targets
 - Retry policies / circuit breakers
 - Proto2 syntax (proto3 only initially)
+
+---
+
+## 10. Distribution Plan
+
+### 10.1 Distribution Options Overview
+
+| Method | Use Case | Pros | Cons |
+|--------|----------|------|------|
+| Docker | Self-hosted, teams, CI/CD | Portable, isolated, easy deploy | Requires Docker |
+| npm/npx | Developer local use | One command install | Requires Node.js |
+| Desktop App | Non-technical users | No dependencies | Large bundle, updates |
+| Cloud SaaS | Zero install | Instant access | Hosting costs, data privacy |
+
+**Recommended Priority:**
+1. Docker Image (primary)
+2. npm package with npx support
+3. Cloud-hosted demo instance
+4. Desktop app (future)
+
+### 10.2 Docker Distribution
+
+#### 10.2.1 Dockerfile
+
+```dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built assets
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
+```
+
+#### 10.2.2 Next.js Configuration for Standalone
+
+```javascript
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',  // Enable standalone build for Docker
+  experimental: {
+    outputFileTracingRoot: undefined,
+  },
+};
+
+module.exports = nextConfig;
+```
+
+#### 10.2.3 Docker Compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  sendr:
+    build: .
+    image: sendr:latest
+    container_name: sendr
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    # Optional: persist data volume for future server-side storage
+    # volumes:
+    #   - sendr-data:/app/data
+
+# volumes:
+#   sendr-data:
+```
+
+#### 10.2.4 Docker Hub Publishing
+
+```bash
+# Build and tag
+docker build -t sendr:latest .
+docker tag sendr:latest yourusername/sendr:latest
+docker tag sendr:latest yourusername/sendr:1.0.0
+
+# Push to Docker Hub
+docker login
+docker push yourusername/sendr:latest
+docker push yourusername/sendr:1.0.0
+```
+
+#### 10.2.5 GitHub Container Registry (GHCR)
+
+```yaml
+# .github/workflows/docker-publish.yml
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+#### 10.2.6 User Installation
+
+```bash
+# Quick start with Docker
+docker run -d -p 3000:3000 --name sendr ghcr.io/yourusername/sendr:latest
+
+# Or with Docker Compose
+curl -O https://raw.githubusercontent.com/yourusername/sendr/main/docker-compose.yml
+docker-compose up -d
+
+# Access at http://localhost:3000
+```
+
+### 10.3 npm Package Distribution
+
+#### 10.3.1 Package Configuration
+
+```json
+// package.json additions
+{
+  "name": "sendr",
+  "version": "1.0.0",
+  "description": "Browser-based API testing tool with passthrough proxy",
+  "bin": {
+    "sendr": "./bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    ".next/standalone/",
+    ".next/static/",
+    "public/"
+  ],
+  "keywords": ["api", "testing", "postman", "http", "grpc", "rest"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sendr.git"
+  },
+  "license": "MIT"
+}
+```
+
+#### 10.3.2 CLI Entry Point
+
+```javascript
+#!/usr/bin/env node
+// bin/cli.js
+
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const args = process.argv.slice(2);
+const port = args.find(a => a.startsWith('--port='))?.split('=')[1] ||
+             args[args.indexOf('-p') + 1] ||
+             process.env.PORT ||
+             3000;
+
+console.log(`
+  ╔═══════════════════════════════════════╗
+  ║             SENDR                     ║
+  ║   Browser-based API Testing Tool      ║
+  ╚═══════════════════════════════════════╝
+`);
+
+console.log(`Starting Sendr on http://localhost:${port}`);
+console.log('Press Ctrl+C to stop\n');
+
+// Set environment and start server
+process.env.PORT = port;
+const serverPath = path.join(__dirname, '..', '.next', 'standalone', 'server.js');
+
+if (!fs.existsSync(serverPath)) {
+  console.error('Error: Built files not found. Please rebuild the package.');
+  process.exit(1);
+}
+
+const server = spawn('node', [serverPath], {
+  stdio: 'inherit',
+  env: { ...process.env, PORT: port }
+});
+
+server.on('error', (err) => {
+  console.error('Failed to start server:', err.message);
+  process.exit(1);
+});
+
+// Handle shutdown
+process.on('SIGINT', () => {
+  console.log('\nShutting down Sendr...');
+  server.kill('SIGINT');
+  process.exit(0);
+});
+```
+
+#### 10.3.3 User Installation via npm
+
+```bash
+# Global install
+npm install -g sendr
+sendr --port 3000
+
+# Or run directly with npx (no install)
+npx sendr
+npx sendr --port 8080
+
+# Or add to project
+npm install --save-dev sendr
+npx sendr
+```
+
+### 10.4 Multi-Architecture Docker Builds
+
+Support for ARM64 (Apple Silicon, AWS Graviton) and AMD64:
+
+```yaml
+# In GitHub Actions workflow
+- name: Build and push multi-arch
+  uses: docker/build-push-action@v5
+  with:
+    context: .
+    platforms: linux/amd64,linux/arm64
+    push: true
+    tags: ${{ steps.meta.outputs.tags }}
+```
+
+### 10.5 Environment Variables
+
+```bash
+# Supported environment variables
+PORT=3000                    # Server port (default: 3000)
+HOST=0.0.0.0                 # Bind address (default: 0.0.0.0)
+NODE_ENV=production          # Environment mode
+
+# Future: Optional features
+SENDR_PROXY_TIMEOUT=30000    # Proxy request timeout in ms
+SENDR_MAX_BODY_SIZE=10mb     # Maximum request body size
+SENDR_ENABLE_TELEMETRY=false # Anonymous usage telemetry
+```
+
+### 10.6 Distribution Checklist
+
+#### Pre-release
+- [ ] Update version in package.json
+- [ ] Update CHANGELOG.md
+- [ ] Run full test suite
+- [ ] Test Docker build locally
+- [ ] Test npm pack and install locally
+- [ ] Update README with latest features
+
+#### Release Process
+- [ ] Create git tag (v1.0.0)
+- [ ] Push tag to trigger CI/CD
+- [ ] Verify Docker image published to GHCR/Docker Hub
+- [ ] Publish to npm (`npm publish`)
+- [ ] Create GitHub Release with release notes
+- [ ] Update documentation site
+
+#### Post-release
+- [ ] Verify Docker image works: `docker run ghcr.io/user/sendr:latest`
+- [ ] Verify npm package works: `npx sendr@latest`
+- [ ] Announce release (Twitter, Discord, etc.)
+
+### 10.7 Versioning Strategy
+
+Follow Semantic Versioning (SemVer):
+- **MAJOR** (1.0.0 → 2.0.0): Breaking changes to UI, data models, or API
+- **MINOR** (1.0.0 → 1.1.0): New features (gRPC support, new auth types)
+- **PATCH** (1.0.0 → 1.0.1): Bug fixes, performance improvements
+
+**Docker Tags:**
+- `latest` - Most recent stable release
+- `1.0.0` - Specific version (immutable)
+- `1.0` - Latest patch of minor version
+- `1` - Latest minor of major version
+- `edge` - Latest commit on main branch (unstable)
+
+### 10.8 Future: Desktop App (Electron)
+
+For users who prefer a native application:
+
+```
+sendr-desktop/
+├── electron/
+│   ├── main.ts           # Electron main process
+│   ├── preload.ts        # Preload script
+│   └── window.ts         # Window management
+├── package.json          # Electron-specific config
+└── electron-builder.yml  # Build configuration
+```
+
+**Advantages:**
+- No browser needed
+- System tray integration
+- Native file dialogs for proto upload
+- Offline capability (for local APIs)
+
+**Build targets:**
+- Windows: `.exe` installer, portable
+- macOS: `.dmg`, `.app`
+- Linux: `.AppImage`, `.deb`, `.rpm`
+
+### 10.9 File Structure for Distribution
+
+```
+sendr/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml              # Test on PR
+│       ├── docker-publish.yml  # Build & push Docker
+│       └── npm-publish.yml     # Publish to npm
+├── bin/
+│   └── cli.js                  # npx entry point
+├── docker/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── .dockerignore
+├── src/                        # Application source
+├── package.json
+├── next.config.js              # With standalone output
+├── CHANGELOG.md
+├── LICENSE
+└── README.md                   # Installation instructions
+```

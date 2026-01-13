@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  sendr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sendr:latest
+    container_name: sendr
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+  # Development configuration (use with: docker-compose --profile dev up)
+  sendr-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sendr:dev
+    container_name: sendr-dev
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    profiles:
+      - dev

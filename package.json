@@ -1,12 +1,41 @@
 {
   "name": "sendr",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Browser-based API testing tool with passthrough proxy - like Postman, but in your browser",
+  "author": "Prashant",
+  "license": "MIT",
+  "keywords": [
+    "api",
+    "testing",
+    "postman",
+    "http",
+    "rest",
+    "api-client",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prashant/sendr.git"
+  },
+  "bin": {
+    "sendr": "./bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    ".next/standalone/",
+    ".next/static/",
+    "public/"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "docker:build": "docker build -t sendr:latest .",
+    "docker:run": "docker run -d -p 3000:3000 --name sendr sendr:latest",
+    "docker:stop": "docker stop sendr && docker rm sendr",
+    "docker:push": "docker tag sendr:latest prashant332/sendr:latest && docker push prashant332/sendr:latest",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
