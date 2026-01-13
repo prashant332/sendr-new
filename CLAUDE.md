@@ -358,7 +358,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 | 1 | Environment variables lost after page refresh | ✅ Fixed |
 | 2 | Clicking second request in collection loads first request | ✅ Fixed |
 | 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed |
-| 4 | Adding new environment doesnt to anything when i try to clice '+' button from Manage environment option. This happens when running in docker, running in dev mode seems to work. | |
+| 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | ✅ Fixed |
 
 ---
 
@@ -371,7 +371,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - [ ] WebSocket Support
 - [ ] GraphQL Support
 - [ ] Protocol Buffers / gRPC Support (see Section 9)
-- [ ] AI powered script generation
+- [x] AI powered script generation (see Section 11)
 
 ---
 

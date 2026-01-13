@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useEnvironmentStore, Environment } from "@/store/environmentStore";
 
 interface EnvironmentManagerProps {
@@ -8,8 +8,15 @@ interface EnvironmentManagerProps {
 }
 
 export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
-  const { environments, addEnvironment, updateEnvironment, deleteEnvironment } =
+  const { environments, addEnvironment, updateEnvironment, deleteEnvironment, initialize, isLoaded } =
     useEnvironmentStore();
+
+  // Ensure store is initialized
+  useEffect(() => {
+    if (!isLoaded) {
+      initialize();
+    }
+  }, [isLoaded, initialize]);
   const [selectedEnvId, setSelectedEnvId] = useState<string | null>(
     environments[0]?.id ?? null
   );

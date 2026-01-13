@@ -7,9 +7,10 @@ interface EnvironmentState {
   environments: Environment[];
   activeEnvironmentId: string | null;
   isLoaded: boolean;
+  isInitializing: boolean;
 
-  // Internal: sync from DB
-  _loadFromDB: () => Promise<void>;
+  // Initialize the store - must be called from useEffect
+  initialize: () => Promise<void>;
 
   addEnvironment: (name: string) => Promise<void>;
   updateEnvironment: (id: string, updates: Partial<Omit<Environment, "id">>) => Promise<void>;
@@ -26,18 +27,37 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
   activeEnvironmentId: null,
   isLoaded: false,
+  isInitializing: false,
 
-  _loadFromDB: async () => {
-    const environments = await db.environments.toArray();
-    const settings = await db.settings.get(SETTINGS_ID);
-    set({
-      environments,
-      activeEnvironmentId: settings?.activeEnvironmentId ?? null,
-      isLoaded: true,
-    });
+  initialize: async () => {
+    const state = get();
+    // Prevent multiple simultaneous initializations
+    if (state.isLoaded || state.isInitializing) return;
+
+    set({ isInitializing: true });
+    try {
+      const environments = await db.environments.toArray();
+      const settings = await db.settings.get(SETTINGS_ID);
+      set({
+        environments,
+        activeEnvironmentId: settings?.activeEnvironmentId ?? null,
+        isLoaded: true,
+        isInitializing: false,
+      });
+    } catch (error) {
+      console.error("Failed to initialize environment store:", error);
+      set({ isInitializing: false, isLoaded: true });
+    }
   },
 
   addEnvironment: async (name: string) => {
+    // Ensure store is initialized before adding
+    const state = get();
+    if (!state.isLoaded) {
+      console.warn("Environment store not initialized, initializing now...");
+      await get().initialize();
+    }
+
     const newEnv: Environment = {
       id: crypto.randomUUID(),
       name,
@@ -127,7 +147,5 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   },
 }));
 
-// Initialize store from DB on load
-if (typeof window !== "undefined") {
-  useEnvironmentStore.getState()._loadFromDB();
-}
+// Note: Initialize must be called from a useEffect in the main component
+// to ensure proper client-side initialization in all build modes

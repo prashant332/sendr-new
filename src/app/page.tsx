@@ -77,9 +77,18 @@ export default function Home() {
   // Get store methods
   const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
   const setVariables = useEnvironmentStore((state) => state.setVariables);
+  const initializeEnv = useEnvironmentStore((state) => state.initialize);
+  const isEnvLoaded = useEnvironmentStore((state) => state.isLoaded);
 
   // Initialize AI store
   const { initialize: initializeAI, isInitialized: isAIInitialized } = useAIStore();
+
+  // Initialize stores on mount
+  useEffect(() => {
+    if (!isEnvLoaded) {
+      initializeEnv();
+    }
+  }, [isEnvLoaded, initializeEnv]);
 
   useEffect(() => {
     if (!isAIInitialized) {
