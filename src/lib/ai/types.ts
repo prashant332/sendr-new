@@ -98,7 +98,7 @@ export const DEFAULT_PROVIDERS: Record<AIProviderTypeAlias, Partial<LLMProviderT
   gemini: {
     name: "Google Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    model: "gemini-1.5-pro",
+    model: "gemini-2.0-flash",
   },
   anthropic: {
     name: "Anthropic",
@@ -120,7 +120,7 @@ export const DEFAULT_PROVIDERS: Record<AIProviderTypeAlias, Partial<LLMProviderT
 // Available models per provider
 export const PROVIDER_MODELS: Record<AIProviderTypeAlias, string[]> = {
   openai: ["gpt-4-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
-  gemini: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"],
+  gemini: ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-pro"],
   anthropic: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
   ollama: ["llama3:8b", "llama3:70b", "codellama:7b", "mistral:7b"],
   custom: [],

@@ -47,11 +47,9 @@ Do not include any other text, warnings, or suggestions outside this format.`;
 function getTestScriptAPIs(isGrpc: boolean): string {
   const httpAPIs = `### Response (Test Scripts Only)
 - pm.response.json(): any - Parse response body as JSON
-- pm.response.text(): string - Get response body as text
-- pm.response.status: number - HTTP status code
-- pm.response.statusText: string - HTTP status text
-- pm.response.headers: Record<string, string> - Response headers
-- pm.response.time: number - Response time in milliseconds`;
+- pm.response.code: number - HTTP status code
+- pm.response.status: string - HTTP status text
+- pm.response.headers: Record<string, string> - Response headers`;
 
   const grpcAPIs = `### Response (Test Scripts Only - gRPC)
 - pm.response.json(): any - Parse response message as JSON

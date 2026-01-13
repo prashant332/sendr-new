@@ -155,7 +155,7 @@ export const DEFAULT_PROVIDER_CONFIG: Record<AIProviderType, { baseUrl: string; 
   },
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
   },
   anthropic: {
     baseUrl: "https://api.anthropic.com/v1",
@@ -173,7 +173,7 @@ export const DEFAULT_PROVIDER_CONFIG: Record<AIProviderType, { baseUrl: string; 
 
 export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   openai: ["gpt-4-turbo", "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
-  gemini: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"],
+  gemini: ["gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-pro"],
   anthropic: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
   ollama: ["llama3:8b", "llama3:70b", "codellama:7b", "mistral:7b", "mixtral:8x7b"],
   custom: [],

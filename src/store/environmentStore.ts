@@ -23,6 +23,9 @@ interface EnvironmentState {
 
 const SETTINGS_ID = "app-settings";
 
+// Promise to track initialization completion
+let initializationPromise: Promise<void> | null = null;
+
 export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
   activeEnvironmentId: null,
@@ -31,42 +34,63 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
 
   initialize: async () => {
     const state = get();
-    // Prevent multiple simultaneous initializations
-    if (state.isLoaded || state.isInitializing) return;
+    // If already loaded, return immediately
+    if (state.isLoaded) return;
+
+    // If initialization is in progress, wait for it
+    if (state.isInitializing && initializationPromise) {
+      return initializationPromise;
+    }
 
     set({ isInitializing: true });
-    try {
-      const environments = await db.environments.toArray();
-      const settings = await db.settings.get(SETTINGS_ID);
-      set({
-        environments,
-        activeEnvironmentId: settings?.activeEnvironmentId ?? null,
-        isLoaded: true,
-        isInitializing: false,
-      });
-    } catch (error) {
-      console.error("Failed to initialize environment store:", error);
-      set({ isInitializing: false, isLoaded: true });
-    }
+
+    initializationPromise = (async () => {
+      try {
+        // Ensure database is open
+        await db.open();
+        const environments = await db.environments.toArray();
+        const settings = await db.settings.get(SETTINGS_ID);
+        set({
+          environments,
+          activeEnvironmentId: settings?.activeEnvironmentId ?? null,
+          isLoaded: true,
+          isInitializing: false,
+        });
+      } catch (error) {
+        console.error("Failed to initialize environment store:", error);
+        set({ isInitializing: false, isLoaded: true });
+      }
+    })();
+
+    return initializationPromise;
   },
 
   addEnvironment: async (name: string) => {
-    // Ensure store is initialized before adding
+    // Wait for initialization to complete
     const state = get();
     if (!state.isLoaded) {
-      console.warn("Environment store not initialized, initializing now...");
+      console.log("Waiting for environment store initialization...");
       await get().initialize();
     }
 
-    const newEnv: Environment = {
-      id: crypto.randomUUID(),
-      name,
-      variables: {},
-    };
-    await db.environments.add(newEnv);
-    set((state) => ({
-      environments: [...state.environments, newEnv],
-    }));
+    try {
+      // Ensure database is open
+      await db.open();
+
+      const newEnv: Environment = {
+        id: crypto.randomUUID(),
+        name,
+        variables: {},
+      };
+      await db.environments.add(newEnv);
+      set((state) => ({
+        environments: [...state.environments, newEnv],
+      }));
+      console.log("Environment added successfully:", name);
+    } catch (error) {
+      console.error("Failed to add environment:", error);
+      throw error;
+    }
   },
 
   updateEnvironment: async (id: string, updates: Partial<Omit<Environment, "id">>) => {
