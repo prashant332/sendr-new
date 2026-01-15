@@ -4,6 +4,28 @@ This file serves as the single source of truth for product requirements, technic
 
 ---
 
+## Implementation Status Summary
+
+| Feature Area | Status | Section |
+|--------------|--------|---------|
+| **Core Features (Phases 1-10)** | ✅ **100% Complete** | §6 |
+| HTTP Proxy, Collections, Environments | ✅ Implemented | §5 |
+| Scripting Engine (pm API) | ✅ Implemented | §5.3 |
+| Workflow Runner | ✅ Implemented | §5.5 |
+| Response Visualizer | ✅ Implemented | §5.9 |
+| **AI Script Generation (Phases 19-23)** | ✅ **~95% Complete** | §11 |
+| LLM Adapters (OpenAI, Gemini, Anthropic, Ollama) | ✅ Implemented | §11.4 |
+| Quick Actions & Context Builder | ✅ Implemented | §11.9 |
+| **Distribution** | ✅ **100% Complete** | §10 |
+| Docker & docker-compose | ✅ Implemented | §10.2 |
+| npm/npx CLI | ✅ Implemented | §10.3 |
+| CI/CD Workflows | ✅ Implemented | §10.2.5 |
+| **gRPC/Protocol Buffers (Phases 11-18)** | ❌ **Not Implemented** | §9 |
+| Proto Schema Management | ❌ Future | §9.4 |
+| gRPC Proxy & UI | ❌ Future | §9.5 |
+
+---
+
 ## 1. Project Overview
 
 **Sendr** is a browser-based API testing tool (similar to Postman) that uses a "Passthrough Proxy" architecture to bypass CORS restrictions.
@@ -58,28 +80,45 @@ npm run lint     # Run ESLint
 ```
 src/
 ├── app/
-│   ├── api/proxy/route.ts    # Proxy API endpoint
-│   └── page.tsx              # Main UI component
+│   ├── api/
+│   │   ├── proxy/route.ts        # HTTP Proxy API endpoint
+│   │   └── ai/generate/route.ts  # AI script generation endpoint
+│   ├── layout.tsx
+│   └── page.tsx                  # Main UI component
 ├── components/
-│   ├── AuthEditor.tsx        # Authentication configuration editor
-│   ├── BodyEditor.tsx        # Request body editor with mode selector
-│   ├── ResponseVisualizer.tsx # Auto-generated response UI renderer
-│   ├── KeyValueEditor.tsx    # Reusable key-value pair editor
-│   ├── Sidebar.tsx           # Collections tree view
-│   ├── WorkflowRunner.tsx    # Collection runner UI
-│   ├── EnvironmentSelector.tsx
-│   ├── EnvironmentManager.tsx
-│   ├── CreateCollectionModal.tsx
-│   └── SaveRequestModal.tsx
+│   ├── AIScriptAssistant.tsx     # AI script generation panel
+│   ├── AISettingsModal.tsx       # LLM provider configuration modal
+│   ├── AuthEditor.tsx            # Authentication configuration editor
+│   ├── BodyEditor.tsx            # Request body editor with mode selector
+│   ├── CreateCollectionModal.tsx # Collection creation modal
+│   ├── EnvironmentManager.tsx    # Environment CRUD modal
+│   ├── EnvironmentSelector.tsx   # Environment dropdown selector
+│   ├── KeyValueEditor.tsx        # Reusable key-value pair editor
+│   ├── QuickActions.tsx          # AI quick action suggestions
+│   ├── ResponseVisualizer.tsx    # Auto-generated response UI renderer
+│   ├── SaveRequestModal.tsx      # Save request dialog
+│   ├── Sidebar.tsx               # Collections tree view
+│   └── WorkflowRunner.tsx        # Collection runner UI
 ├── hooks/
-│   └── useCollections.ts     # CRUD hooks for collections/requests
+│   └── useCollections.ts         # CRUD hooks for collections/requests
 ├── lib/
-│   ├── db.ts                 # Dexie database schema
-│   ├── interpolate.ts        # Variable interpolation
-│   ├── scriptRunner.ts       # Script execution with pm API
-│   └── workflowRunner.ts     # Collection runner engine
+│   ├── ai/
+│   │   ├── adapters/
+│   │   │   ├── base.ts           # LLM adapter interface
+│   │   │   ├── openai.ts         # OpenAI provider adapter
+│   │   │   ├── gemini.ts         # Google Gemini provider adapter
+│   │   │   └── index.ts          # Adapter registry
+│   │   ├── contextBuilder.ts     # Build LLM context from response
+│   │   ├── systemPrompt.ts       # System prompt templates
+│   │   ├── types.ts              # AI types & interfaces
+│   │   └── index.ts              # AI module exports
+│   ├── db.ts                     # Dexie database schema
+│   ├── interpolate.ts            # Variable interpolation
+│   ├── scriptRunner.ts           # Script execution with pm API
+│   └── workflowRunner.ts         # Collection runner engine
 └── store/
-    └── environmentStore.ts   # Zustand store (IndexedDB persisted)
+    ├── aiStore.ts                # Zustand AI settings store
+    └── environmentStore.ts       # Zustand environment store (IndexedDB persisted)
 ```
 
 ---
@@ -355,10 +394,10 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 
 | ID | Description | Status |
 |----|-------------|--------|
-| 1 | Environment variables lost after page refresh | ✅ Fixed |
-| 2 | Clicking second request in collection loads first request | ✅ Fixed |
-| 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed |
-| 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | |
+| 1 | Environment variables lost after page refresh | ✅ Fixed - Zustand + IndexedDB persistence |
+| 2 | Clicking second request in collection loads first request | ✅ Fixed - Proper request key handling |
+| 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed - Auto/manual view types working |
+| 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | ✅ Fixed - Enhanced initialization with db.open() |
 
 ---
 
@@ -370,12 +409,17 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - [ ] Code Generation (cURL, JavaScript, Python snippets)
 - [ ] WebSocket Support
 - [ ] GraphQL Support
-- [ ] Protocol Buffers / gRPC Support (see Section 9)
-- [x] AI powered script generation (see Section 11)
+- [ ] Protocol Buffers / gRPC Support (see Section 9 - **NOT YET IMPLEMENTED**)
+- [x] AI powered script generation (see Section 11 - **IMPLEMENTED**)
+- [x] Distribution (Docker, npm, CI/CD) (see Section 10 - **IMPLEMENTED**)
 
 ---
 
 ## 9. Protocol Buffers / gRPC Support Plan
+
+> **⚠️ STATUS: NOT IMPLEMENTED**
+>
+> This section documents the **planned** gRPC/Protocol Buffers support. None of the features described in this section have been implemented yet. The entire Section 9 (Phases 11-18) remains as a future roadmap.
 
 ### 9.1 Overview
 
@@ -1364,6 +1408,10 @@ src/
 
 ## 10. Distribution Plan
 
+> **✅ STATUS: IMPLEMENTED**
+>
+> Docker, npm/npx, and CI/CD workflows are fully implemented. See `Dockerfile`, `docker-compose.yml`, `bin/cli.js`, and `.github/workflows/` for implementation.
+
 ### 10.1 Distribution Options Overview
 
 | Method | Use Case | Pros | Cons |
@@ -1760,6 +1808,17 @@ sendr/
 ---
 
 ## 11. AI-Powered Script Generation
+
+> **✅ STATUS: IMPLEMENTED**
+>
+> AI-powered script generation is fully implemented including:
+> - LLM Provider adapters (OpenAI, Gemini, Anthropic, Ollama, Custom)
+> - AIScriptAssistant component with generation panel
+> - AISettingsModal for provider configuration
+> - QuickActions for response-based suggestions
+> - Context builder with response schema inference
+> - Script validation (syntax + security)
+> - Conversation history for refinement
 
 ### 11.1 Overview
 
@@ -2398,38 +2457,40 @@ interface QuickAction {
 
 ### 11.10 Implementation Phases
 
-#### Phase 19: AI Foundation
-- [ ] Create AISettings store with IndexedDB persistence
-- [ ] Implement LLM adapter interface
-- [ ] Create OpenAI adapter
-- [ ] Create Anthropic adapter
-- [ ] Create Ollama adapter (local LLM support)
-- [ ] Build secure API key storage (encrypted in IndexedDB)
-- [ ] Create AI Settings modal UI
+#### Phase 19: AI Foundation ✅
+- [x] Create AISettings store with IndexedDB persistence
+- [x] Implement LLM adapter interface
+- [x] Create OpenAI adapter
+- [x] Create Gemini adapter
+- [x] Create Anthropic adapter (via API route)
+- [x] Create Ollama adapter (local LLM support)
+- [x] Create Custom adapter (OpenAI-compatible APIs)
+- [x] Build secure API key storage (in IndexedDB)
+- [x] Create AI Settings modal UI
 
-#### Phase 20: Script Generation
-- [ ] Design and implement system prompt
-- [ ] Build context builder (schema inference, sanitization)
-- [ ] Create script generation API route (proxy to avoid CORS)
-- [ ] Implement script validation
-- [ ] Create AI Script Assistant panel UI
-- [ ] Add "Insert into Script" functionality
-- [ ] Implement conversation history for refinement
+#### Phase 20: Script Generation ✅
+- [x] Design and implement system prompt
+- [x] Build context builder (schema inference, sanitization)
+- [x] Create script generation API route (proxy to avoid CORS)
+- [x] Implement script validation
+- [x] Create AI Script Assistant panel UI
+- [x] Add "Insert into Script" functionality
+- [x] Implement conversation history for refinement
 
-#### Phase 21: Smart Context
-- [ ] Implement JSON schema inference from response
-- [ ] Add response truncation and sanitization
-- [ ] Include environment variables in context
-- [ ] Support gRPC response context
-- [ ] Add existing script context for modifications
+#### Phase 21: Smart Context ✅
+- [x] Implement JSON schema inference from response
+- [x] Add response truncation and sanitization
+- [x] Include environment variables in context
+- [ ] Support gRPC response context (blocked: gRPC not implemented)
+- [x] Add existing script context for modifications
 
-#### Phase 22: Quick Actions
-- [ ] Implement response analysis for suggestions
-- [ ] Create quick action suggestion engine
-- [ ] Add quick action buttons to script editor
-- [ ] Pre-fill prompts for common operations
+#### Phase 22: Quick Actions ✅
+- [x] Implement response analysis for suggestions
+- [x] Create quick action suggestion engine
+- [x] Add quick action buttons to script editor
+- [x] Pre-fill prompts for common operations
 
-#### Phase 23: Advanced Features
+#### Phase 23: Advanced Features (Partial)
 - [ ] Add "Explain Script" feature (describe existing scripts)
 - [ ] Implement "Fix Script" for error recovery
 - [ ] Add auto-generate assertions option
@@ -2523,50 +2584,60 @@ export async function POST(request: NextRequest) {
 ### 11.12 Database Schema Changes
 
 ```typescript
-// Add AI settings table
-db.version(3).stores({
+// Actual schema in db.ts (version 2)
+db.version(2).stores({
   collections: "id, name, createdAt",
   requests: "id, collectionId, name",
   environments: "id, name",
   settings: "id",
-  protoSchemas: "id, name, path, collectionId, createdAt",
-  aiSettings: "id"  // NEW - single row for AI configuration
+  aiSettings: "id"  // AI configuration table
 });
+
+// Note: protoSchemas table is NOT implemented (gRPC not yet built)
 ```
 
-### 11.13 File Structure Changes
+### 11.13 File Structure (Actual Implementation)
 
 ```
 src/
 ├── app/
 │   ├── api/
-│   │   ├── proxy/route.ts
-│   │   ├── grpc-proxy/route.ts
-│   │   └── ai/
-│   │       └── generate/route.ts    # NEW: LLM proxy endpoint
+│   │   ├── proxy/route.ts           # HTTP proxy endpoint
+│   │   └── ai/generate/route.ts     # LLM proxy endpoint
+│   ├── layout.tsx
 │   └── page.tsx
 ├── components/
-│   ├── ... existing components ...
-│   ├── AIScriptAssistant.tsx        # NEW: AI generation panel
-│   ├── AISettingsModal.tsx          # NEW: Provider configuration
-│   ├── QuickActions.tsx             # NEW: Suggested actions
-│   └── AddProviderModal.tsx         # NEW: Add LLM provider
+│   ├── AIScriptAssistant.tsx        # AI generation panel
+│   ├── AISettingsModal.tsx          # Provider configuration
+│   ├── QuickActions.tsx             # Suggested actions
+│   ├── AuthEditor.tsx
+│   ├── BodyEditor.tsx
+│   ├── CreateCollectionModal.tsx
+│   ├── EnvironmentManager.tsx
+│   ├── EnvironmentSelector.tsx
+│   ├── KeyValueEditor.tsx
+│   ├── ResponseVisualizer.tsx
+│   ├── SaveRequestModal.tsx
+│   ├── Sidebar.tsx
+│   └── WorkflowRunner.tsx
 ├── lib/
-│   ├── ... existing libs ...
 │   ├── ai/
 │   │   ├── adapters/
-│   │   │   ├── base.ts              # NEW: Adapter interface
-│   │   │   ├── openai.ts            # NEW: OpenAI adapter
-│   │   │   ├── anthropic.ts         # NEW: Anthropic adapter
-│   │   │   └── ollama.ts            # NEW: Ollama adapter
-│   │   ├── contextBuilder.ts        # NEW: Build LLM context
-│   │   ├── schemaInference.ts       # NEW: Infer JSON schema
-│   │   ├── scriptValidator.ts       # NEW: Validate generated scripts
-│   │   ├── quickActions.ts          # NEW: Suggest actions
-│   │   └── systemPrompt.ts          # NEW: System prompt templates
+│   │   │   ├── base.ts              # Adapter interface
+│   │   │   ├── openai.ts            # OpenAI adapter
+│   │   │   ├── gemini.ts            # Google Gemini adapter
+│   │   │   └── index.ts             # Adapter registry
+│   │   ├── contextBuilder.ts        # Build LLM context
+│   │   ├── systemPrompt.ts          # System prompt templates
+│   │   ├── types.ts                 # AI types & interfaces
+│   │   └── index.ts                 # Module exports
+│   ├── db.ts                        # Dexie database schema
+│   ├── interpolate.ts               # Variable interpolation
+│   ├── scriptRunner.ts              # Script execution with pm API
+│   └── workflowRunner.ts            # Collection runner engine
 └── store/
-    ├── environmentStore.ts
-    └── aiStore.ts                   # NEW: AI settings store
+    ├── aiStore.ts                   # AI settings store
+    └── environmentStore.ts          # Environment store
 ```
 
 ### 11.14 Security Considerations
