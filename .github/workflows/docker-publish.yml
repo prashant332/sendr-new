@@ -12,6 +12,13 @@ on:
         description: "Tag to build and push"
         required: true
         default: "latest"
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to build and push"
+        required: false
+        type: string
+        default: "edge"
 
 env:
   REGISTRY: ghcr.io
@@ -52,7 +59,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ github.event.inputs.tag || inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
