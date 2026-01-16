@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   ResponseTemplate,
   TemplateColumn,
@@ -165,17 +165,18 @@ function CellValue({ value, type }: { value: unknown; type: TemplateColumn["type
       );
     case "number":
       return <span className="text-blue-400 font-mono">{String(value)}</span>;
-    case "date":
-      try {
-        const date = new Date(value as string);
+    case "date": {
+      const date = new Date(value as string);
+      const isValidDate = !isNaN(date.getTime());
+      if (isValidDate) {
         return (
           <span className="text-purple-400">
             {date.toLocaleDateString()} {date.toLocaleTimeString()}
           </span>
         );
-      } catch {
-        return <span>{String(value)}</span>;
       }
+      return <span>{String(value)}</span>;
+    }
     case "url":
       return (
         <a
@@ -189,6 +190,7 @@ function CellValue({ value, type }: { value: unknown; type: TemplateColumn["type
       );
     case "image":
       return (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={value as string}
           alt=""
@@ -440,26 +442,25 @@ export function ResponseVisualizer({
   template: externalTemplate,
   onTemplateChange,
 }: ResponseVisualizerProps) {
-  // Generate template from data if not provided
-  const [internalTemplate, setInternalTemplate] = useState<ResponseTemplate>(() =>
-    externalTemplate || generateTemplate(data)
-  );
+  // Track internal template overrides for when user modifies settings
+  const [internalTemplateOverride, setInternalTemplateOverride] = useState<ResponseTemplate | null>(null);
 
-  const template = externalTemplate || internalTemplate;
-
-  // Regenerate template when data changes (if no external template)
-  useEffect(() => {
-    if (!externalTemplate && data) {
-      const newTemplate = generateTemplate(data);
-      setInternalTemplate(newTemplate);
+  // Generate template from data using useMemo (not useEffect + setState)
+  const generatedTemplate = useMemo(() => {
+    if (data) {
+      return generateTemplate(data);
     }
-  }, [data, externalTemplate]);
+    return createDefaultTemplate();
+  }, [data]);
+
+  // Use external template, internal override, or generated template
+  const template = externalTemplate || internalTemplateOverride || generatedTemplate;
 
   const handleTemplateChange = (newTemplate: ResponseTemplate) => {
     if (onTemplateChange) {
       onTemplateChange(newTemplate);
     } else {
-      setInternalTemplate(newTemplate);
+      setInternalTemplateOverride(newTemplate);
     }
   };
 

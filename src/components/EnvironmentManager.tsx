@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useEnvironmentStore, Environment } from "@/store/environmentStore";
+import { useEnvironmentStore } from "@/store/environmentStore";
 
 interface EnvironmentManagerProps {
   onClose: () => void;

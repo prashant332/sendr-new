@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs");
+import { spawn } from "child_process";
+import { join } from "path";
+import { existsSync } from "fs";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -31,6 +31,7 @@ if (args.includes("--help") || args.includes("-h")) {
 
 // Handle version flag
 if (args.includes("--version") || args.includes("-v")) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const packageJson = require("../package.json");
   console.log(`sendr v${packageJson.version}`);
   process.exit(0);
@@ -71,13 +72,13 @@ console.log(`
 
 // Find the server file
 const possiblePaths = [
-  path.join(__dirname, "..", ".next", "standalone", "server.js"),
-  path.join(__dirname, "..", "server.js"),
+  join(__dirname, "..", ".next", "standalone", "server.js"),
+  join(__dirname, "..", "server.js"),
 ];
 
 let serverPath = null;
 for (const p of possiblePaths) {
-  if (fs.existsSync(p)) {
+  if (existsSync(p)) {
     serverPath = p;
     break;
   }

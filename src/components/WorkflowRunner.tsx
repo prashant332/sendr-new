@@ -19,7 +19,6 @@ export function WorkflowRunner({
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [currentRequestName, setCurrentRequestName] = useState<string | null>(null);
   const getActiveVariables = useEnvironmentStore((s) => s.getActiveVariables);
-  const setVariables = useEnvironmentStore((s) => s.setVariables);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -27,7 +26,7 @@ export function WorkflowRunner({
     setCurrentRequestName(null);
 
     try {
-      const result = await runWorkflow(
+      await runWorkflow(
         {
           collectionId,
           initialVariables: getActiveVariables(),
@@ -44,12 +43,7 @@ export function WorkflowRunner({
           }
         }
       );
-
-      // Update environment with any new variables from the workflow
-      if (result.results.length > 0) {
-        const lastResult = result.results[result.results.length - 1];
-        // Variables are already captured in the workflow
-      }
+      // Variables are already captured in the workflow runner
     } catch (error) {
       console.error("Workflow error:", error);
     } finally {

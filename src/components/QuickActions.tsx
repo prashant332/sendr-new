@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useAIStore } from "@/store/aiStore";
 import { suggestQuickActions } from "@/lib/ai";
 import { QuickAction, ScriptType } from "@/lib/ai/types";
@@ -17,7 +17,6 @@ export default function QuickActions({
   scriptType,
 }: QuickActionsProps) {
   const { settings, isInitialized, initialize } = useAIStore();
-  const [actions, setActions] = useState<QuickAction[]>([]);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -25,15 +24,14 @@ export default function QuickActions({
     }
   }, [isInitialized, initialize]);
 
-  useEffect(() => {
+  // Use useMemo instead of useState + useEffect to avoid setState in effect
+  const actions: QuickAction[] = useMemo(() => {
     if (response && settings.enableAutoSuggestions) {
       const suggested = suggestQuickActions(response);
       // Filter by script type
-      const filtered = suggested.filter((a) => a.scriptType === scriptType);
-      setActions(filtered);
-    } else {
-      setActions([]);
+      return suggested.filter((a) => a.scriptType === scriptType);
     }
+    return [];
   }, [response, settings.enableAutoSuggestions, scriptType]);
 
   if (actions.length === 0) return null;

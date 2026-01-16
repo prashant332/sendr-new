@@ -5,7 +5,7 @@ import Editor from "@monaco-editor/react";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { BodyEditor, createDefaultBody, getContentTypeForBody } from "@/components/BodyEditor";
 import { AuthEditor, createDefaultAuth, applyAuth } from "@/components/AuthEditor";
-import { ResponseVisualizer, createDefaultTemplate } from "@/components/ResponseVisualizer";
+import { ResponseVisualizer } from "@/components/ResponseVisualizer";
 import { EnvironmentSelector } from "@/components/EnvironmentSelector";
 import { EnvironmentManager } from "@/components/EnvironmentManager";
 import { Sidebar } from "@/components/Sidebar";
@@ -68,7 +68,7 @@ export default function Home() {
   const [showSaveRequest, setShowSaveRequest] = useState(false);
   const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string } | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
-  const [activeScriptTab, setActiveScriptTab] = useState<ScriptType>("test");
+  const [, setActiveScriptTab] = useState<ScriptType>("test");
 
   // Active request tracking
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);

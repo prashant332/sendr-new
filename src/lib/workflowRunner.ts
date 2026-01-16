@@ -199,7 +199,7 @@ async function executeRequest(
     : interpolatedUrl;
 
   // Build headers
-  let headers: Record<string, string> = {};
+  const headers: Record<string, string> = {};
   for (const h of request.headers) {
     if (h.active && h.key) {
       headers[interpolate(h.key, currentVariables)] = interpolate(

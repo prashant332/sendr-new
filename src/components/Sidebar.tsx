@@ -160,7 +160,7 @@ function CollectionItem({
           {requests.length === 0 ? (
             <div className="text-zinc-600 text-xs py-1 px-2">No requests</div>
           ) : (
-            requests.map((request, index) => (
+            requests.map((request) => (
               <RequestItem
                 key={request.id}
                 request={request}
