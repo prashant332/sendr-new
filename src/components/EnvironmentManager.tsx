@@ -11,24 +11,58 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
   const { environments, addEnvironment, updateEnvironment, deleteEnvironment, initialize, isLoaded } =
     useEnvironmentStore();
 
+  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
+  const [newEnvName, setNewEnvName] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Ensure store is initialized
   useEffect(() => {
-    if (!isLoaded) {
-      initialize();
-    }
+    const init = async () => {
+      if (!isLoaded) {
+        try {
+          await initialize();
+        } catch (err) {
+          console.error("Failed to initialize environment store:", err);
+          setError("Failed to load environments. Please refresh the page.");
+        }
+      }
+    };
+    init();
   }, [isLoaded, initialize]);
-  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(
-    environments[0]?.id ?? null
-  );
-  const [newEnvName, setNewEnvName] = useState("");
+
+  // Update selected environment when environments load
+  useEffect(() => {
+    if (isLoaded && environments.length > 0 && selectedEnvId === null) {
+      setSelectedEnvId(environments[0].id);
+    }
+  }, [isLoaded, environments, selectedEnvId]);
 
   const selectedEnv = environments.find((env) => env.id === selectedEnvId);
 
-  const handleAddEnvironment = () => {
-    console.log("Adding environment:", newEnvName);
-    if (!newEnvName.trim()) return;
-    addEnvironment(newEnvName.trim());
-    setNewEnvName("");
+  const handleAddEnvironment = async () => {
+    const trimmedName = newEnvName.trim();
+    if (!trimmedName || isAdding) return;
+
+    setIsAdding(true);
+    setError(null);
+
+    try {
+      await addEnvironment(trimmedName);
+      setNewEnvName("");
+      // Select the newly added environment
+      const newEnv = useEnvironmentStore.getState().environments.find(
+        (env) => env.name === trimmedName
+      );
+      if (newEnv) {
+        setSelectedEnvId(newEnv.id);
+      }
+    } catch (err) {
+      console.error("Failed to add environment:", err);
+      setError(`Failed to add environment: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const handleAddVariable = () => {
@@ -77,6 +111,19 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
           </button>
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div className="px-4 py-2 bg-red-900/30 border-b border-red-800 text-red-400 text-sm">
+            {error}
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-300 hover:text-red-100"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-1 overflow-hidden">
           {/* Environment List */}
           <div className="w-48 border-r border-zinc-700 p-3 flex flex-col">
@@ -87,42 +134,49 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
                 onChange={(e) => setNewEnvName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddEnvironment()}
                 placeholder="New env..."
-                className="flex-1 bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm"
+                disabled={!isLoaded || isAdding}
+                className="flex-1 bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm disabled:opacity-50"
               />
               <button
                 onClick={handleAddEnvironment}
-                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm"
+                disabled={!isLoaded || isAdding || !newEnvName.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed px-2 py-1 rounded text-sm min-w-[32px]"
               >
-                +
+                {isAdding ? "..." : "+"}
               </button>
             </div>
             <div className="flex-1 overflow-auto space-y-1">
-              {environments.map((env) => (
-                <div
-                  key={env.id}
-                  className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${
-                    selectedEnvId === env.id
-                      ? "bg-zinc-700"
-                      : "hover:bg-zinc-800"
-                  }`}
-                  onClick={() => setSelectedEnvId(env.id)}
-                >
-                  <span className="text-sm truncate">{env.name}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteEnvironment(env.id);
-                    }}
-                    className="text-zinc-500 hover:text-red-400 text-sm"
-                  >
-                    ×
-                  </button>
+              {!isLoaded ? (
+                <div className="text-zinc-500 text-sm text-center py-4">
+                  Loading...
                 </div>
-              ))}
-              {environments.length === 0 && (
+              ) : environments.length === 0 ? (
                 <div className="text-zinc-500 text-sm text-center py-4">
                   No environments
                 </div>
+              ) : (
+                environments.map((env) => (
+                  <div
+                    key={env.id}
+                    className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer ${
+                      selectedEnvId === env.id
+                        ? "bg-zinc-700"
+                        : "hover:bg-zinc-800"
+                    }`}
+                    onClick={() => setSelectedEnvId(env.id)}
+                  >
+                    <span className="text-sm truncate">{env.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEnvironment(env.id);
+                      }}
+                      className="text-zinc-500 hover:text-red-400 text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>

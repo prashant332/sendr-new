@@ -397,7 +397,30 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 | 1 | Environment variables lost after page refresh | ✅ Fixed - Zustand + IndexedDB persistence |
 | 2 | Clicking second request in collection loads first request | ✅ Fixed - Proper request key handling |
 | 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed - Auto/manual view types working |
-| 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | ✅ Fixed - Enhanced initialization with db.open() |
+| 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | ✅ Fixed - Multiple issues addressed (see details below) |
+
+### Bug #4 Fix Details (Environment Creation in Docker)
+
+**Root Causes:**
+1. `handleAddEnvironment` was not awaiting the async `addEnvironment` call - errors were silently swallowed
+2. Race condition: user could click "+" before store initialization completed
+3. No error feedback to user when operation failed
+4. IndexedDB timing issues in production/standalone builds
+
+**Fix Applied:**
+1. **EnvironmentManager.tsx:**
+   - Made `handleAddEnvironment` async with proper await
+   - Added `isAdding` state to prevent double-clicks
+   - Added `error` state with visible error banner
+   - Disabled input/button until store is loaded
+   - Shows "Loading..." while store initializes
+
+2. **environmentStore.ts:**
+   - Added `ensureDbReady()` helper with retry logic (3 attempts, exponential backoff)
+   - Verifies db is truly ready by calling `db.environments.count()` after open
+   - All database operations now call `ensureDbReady()` first
+   - Better error propagation - errors are thrown, not swallowed
+   - More robust initialization tracking with `initState` object
 
 ---
 

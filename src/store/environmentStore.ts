@@ -23,8 +23,32 @@ interface EnvironmentState {
 
 const SETTINGS_ID = "app-settings";
 
-// Promise to track initialization completion
-let initializationPromise: Promise<void> | null = null;
+// Helper to ensure database is ready with retry logic
+async function ensureDbReady(maxRetries = 3): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (!db.isOpen()) {
+        await db.open();
+      }
+      // Verify db is truly ready by doing a simple operation
+      await db.environments.count();
+      return;
+    } catch (error) {
+      console.warn(`Database open attempt ${attempt}/${maxRetries} failed:`, error);
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to open database after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+    }
+  }
+}
+
+// Store-level initialization tracking (more robust than module-level)
+const initState = {
+  promise: null as Promise<void> | null,
+  initialized: false,
+};
 
 export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
@@ -33,59 +57,72 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   isInitializing: false,
 
   initialize: async () => {
-    const state = get();
-    // If already loaded, return immediately
-    if (state.isLoaded) return;
+    // If already fully initialized, return immediately
+    if (initState.initialized && get().isLoaded) {
+      return;
+    }
 
     // If initialization is in progress, wait for it
-    if (state.isInitializing && initializationPromise) {
-      return initializationPromise;
+    if (initState.promise) {
+      return initState.promise;
     }
 
     set({ isInitializing: true });
 
-    initializationPromise = (async () => {
+    initState.promise = (async () => {
       try {
-        // Ensure database is open
-        await db.open();
+        // Ensure database is ready with retry logic
+        await ensureDbReady();
+
         const environments = await db.environments.toArray();
         const settings = await db.settings.get(SETTINGS_ID);
+
         set({
           environments,
           activeEnvironmentId: settings?.activeEnvironmentId ?? null,
           isLoaded: true,
           isInitializing: false,
         });
+
+        initState.initialized = true;
       } catch (error) {
         console.error("Failed to initialize environment store:", error);
-        set({ isInitializing: false, isLoaded: true });
+        set({ isInitializing: false });
+        initState.promise = null; // Allow retry
+        throw error; // Propagate error so caller can handle it
       }
     })();
 
-    return initializationPromise;
+    return initState.promise;
   },
 
   addEnvironment: async (name: string) => {
-    // Wait for initialization to complete
-    const state = get();
-    if (!state.isLoaded) {
-      console.log("Waiting for environment store initialization...");
+    // Ensure initialization is complete
+    if (!get().isLoaded) {
       await get().initialize();
     }
 
+    // Double-check we're loaded now
+    if (!get().isLoaded) {
+      throw new Error("Environment store failed to initialize");
+    }
+
     try {
-      // Ensure database is open
-      await db.open();
+      // Ensure database is ready
+      await ensureDbReady();
 
       const newEnv: Environment = {
         id: crypto.randomUUID(),
         name,
         variables: {},
       };
+
       await db.environments.add(newEnv);
+
       set((state) => ({
         environments: [...state.environments, newEnv],
       }));
+
       console.log("Environment added successfully:", name);
     } catch (error) {
       console.error("Failed to add environment:", error);
@@ -94,6 +131,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   },
 
   updateEnvironment: async (id: string, updates: Partial<Omit<Environment, "id">>) => {
+    await ensureDbReady();
     await db.environments.update(id, updates);
     set((state) => ({
       environments: state.environments.map((env) =>
@@ -103,6 +141,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   },
 
   deleteEnvironment: async (id: string) => {
+    await ensureDbReady();
     await db.environments.delete(id);
     const state = get();
     const newActiveId = state.activeEnvironmentId === id ? null : state.activeEnvironmentId;
@@ -116,6 +155,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   },
 
   setActiveEnvironment: async (id: string | null) => {
+    await ensureDbReady();
     await db.settings.put({ id: SETTINGS_ID, activeEnvironmentId: id });
     set({ activeEnvironmentId: id });
   },
@@ -137,6 +177,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
     );
     if (!activeEnv) return;
 
+    await ensureDbReady();
     const newVariables = { ...activeEnv.variables, [key]: value };
     await db.environments.update(state.activeEnvironmentId, { variables: newVariables });
 
@@ -158,6 +199,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
     );
     if (!activeEnv) return;
 
+    await ensureDbReady();
     const newVariables = { ...activeEnv.variables, ...variables };
     await db.environments.update(state.activeEnvironmentId, { variables: newVariables });
 
