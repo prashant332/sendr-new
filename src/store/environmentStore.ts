@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db, Environment } from "@/lib/db";
+import { generateUUID } from "@/lib/uuid";
 
 export type { Environment };
 
@@ -112,7 +113,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       await ensureDbReady();
 
       const newEnv: Environment = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name,
         variables: {},
       };

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { db, AISettings, LLMProvider, AIProviderType } from "@/lib/db";
+import { generateUUID } from "@/lib/uuid";
 
 const AI_SETTINGS_ID = "ai-settings";
 
@@ -58,7 +59,7 @@ export const useAIStore = create<AIState>((set, get) => ({
   addProvider: async (providerData) => {
     const newProvider: LLMProvider = {
       ...providerData,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       createdAt: Date.now(),
     };
 

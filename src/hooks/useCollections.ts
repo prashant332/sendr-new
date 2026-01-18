@@ -1,5 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, Collection, SavedRequest } from "@/lib/db";
+import { generateUUID } from "@/lib/uuid";
 
 export function useCollections() {
   const collections = useLiveQuery(() =>
@@ -31,7 +32,7 @@ export function useRequest(requestId: string | null) {
 }
 
 export async function createCollection(name: string): Promise<string> {
-  const id = crypto.randomUUID();
+  const id = generateUUID();
   await db.collections.add({
     id,
     name,
@@ -51,7 +52,7 @@ export async function createRequest(
   collectionId: string,
   request: Omit<SavedRequest, "id" | "collectionId">
 ): Promise<string> {
-  const id = crypto.randomUUID();
+  const id = generateUUID();
   await db.requests.add({
     id,
     collectionId,
