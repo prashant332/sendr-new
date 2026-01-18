@@ -126,23 +126,23 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Environment List */}
-          <div className="w-48 border-r border-zinc-700 p-3 flex flex-col">
-            <div className="flex gap-2 mb-3">
+          <div className="w-52 border-r border-zinc-700 p-3 flex flex-col">
+            <div className="mb-3 space-y-2">
               <input
                 type="text"
                 value={newEnvName}
                 onChange={(e) => setNewEnvName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddEnvironment()}
-                placeholder="New env..."
+                placeholder="New environment name..."
                 disabled={!isLoaded || isAdding}
-                className="flex-1 bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm disabled:opacity-50"
+                className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1.5 text-sm disabled:opacity-50"
               />
               <button
                 onClick={handleAddEnvironment}
                 disabled={!isLoaded || isAdding || !newEnvName.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed px-2 py-1 rounded text-sm min-w-[32px]"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed px-2 py-1.5 rounded text-sm font-medium"
               >
-                {isAdding ? "..." : "+"}
+                {isAdding ? "Adding..." : "+ Add Environment"}
               </button>
             </div>
             <div className="flex-1 overflow-auto space-y-1">
