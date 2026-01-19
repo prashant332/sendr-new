@@ -1,5 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
-import type { editor, languages, Position, CancellationToken, IMarkdownString } from "monaco-editor";
+import type { editor, languages, Position, IMarkdownString } from "monaco-editor";
 
 export interface VariableInfo {
   name: string;
@@ -23,8 +23,7 @@ export function createVariableHoverProvider(
   return {
     provideHover(
       model: editor.ITextModel,
-      position: Position,
-      _token: CancellationToken
+      position: Position
     ): languages.ProviderResult<languages.Hover> {
       const line = model.getLineContent(position.lineNumber);
       const column = position.column;

@@ -5,6 +5,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useMemo,
   KeyboardEvent,
   ChangeEvent,
   FocusEvent,
@@ -55,7 +56,6 @@ export function VariableInput({
   // Autocomplete state
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [cursorPosition, setCursorPosition] = useState(0);
   const [autocompleteContext, setAutocompleteContext] = useState<AutocompleteContext>({
     isActive: false,
     searchQuery: "",
@@ -63,6 +63,7 @@ export function VariableInput({
     replaceEnd: 0,
   });
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const lastSearchQueryRef = useRef<string>("");
 
   // Hover preview state
   const [hoveredVariable, setHoveredVariable] = useState<VariableMatch | null>(null);
@@ -70,20 +71,26 @@ export function VariableInput({
   const [isHoverPreviewVisible, setIsHoverPreviewVisible] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get filtered variables based on search query
-  const filteredVariables = variableContext
-    ? variableContext.getFilteredVariables(autocompleteContext.searchQuery)
-    : [];
+  // Get filtered variables based on search query (memoized)
+  const filteredVariables = useMemo(() => {
+    return variableContext
+      ? variableContext.getFilteredVariables(autocompleteContext.searchQuery)
+      : [];
+  }, [variableContext, autocompleteContext.searchQuery]);
 
   // Update autocomplete context when value or cursor changes
   const updateAutocompleteContext = useCallback(() => {
     if (!inputRef.current) return;
 
     const pos = inputRef.current.selectionStart ?? 0;
-    setCursorPosition(pos);
-
     const context = getAutocompleteContext(value, pos);
     setAutocompleteContext(context);
+
+    // Reset selected index when search query changes
+    if (context.searchQuery !== lastSearchQueryRef.current) {
+      setSelectedIndex(0);
+      lastSearchQueryRef.current = context.searchQuery;
+    }
 
     // Open autocomplete if we have a trigger
     if (context.isActive && variableContext) {
@@ -229,11 +236,6 @@ export function VariableInput({
       }
     });
   }, [filteredVariables.length]);
-
-  // Reset selected index when filtered list changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [autocompleteContext.searchQuery]);
 
   // Find all variables in the current value
   const variables = findAllVariables(value);

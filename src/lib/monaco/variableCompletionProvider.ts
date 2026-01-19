@@ -1,5 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
-import type { editor, languages, Position, CancellationToken } from "monaco-editor";
+import type { editor, languages, Position } from "monaco-editor";
 
 export interface VariableInfo {
   name: string;
@@ -20,9 +20,7 @@ export function createVariableCompletionProvider(
 
     provideCompletionItems(
       model: editor.ITextModel,
-      position: Position,
-      _context: languages.CompletionContext,
-      _token: CancellationToken
+      position: Position
     ): languages.ProviderResult<languages.CompletionList> {
       const textUntilPosition = model.getValueInRange({
         startLineNumber: position.lineNumber,

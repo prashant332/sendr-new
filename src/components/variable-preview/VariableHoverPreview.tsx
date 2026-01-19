@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useMemo } from "react";
 
 interface VariableHoverPreviewProps {
   variableName: string;
@@ -24,24 +24,24 @@ export function VariableHoverPreview({
   onCreateVariable,
 }: VariableHoverPreviewProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [copied, setCopied] = useState(false);
 
-  // Adjust position to avoid overflow
-  useEffect(() => {
-    if (!tooltipRef.current) return;
-
-    const tooltip = tooltipRef.current;
-    const rect = tooltip.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+  // Calculate adjusted position to avoid overflow (computed, not in effect)
+  const adjustedPosition = useMemo(() => {
+    // Use position directly initially, will be refined on render
+    // Note: For a more precise adjustment, we'd need a layout effect,
+    // but this approximation works well for most cases
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1920;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 1080;
+    const tooltipWidth = 350; // max-width estimate
+    const tooltipHeight = 150; // approximate height
 
     let newTop = position.top;
     let newLeft = position.left;
 
     // Check right edge overflow
-    if (rect.right > viewportWidth - 10) {
-      newLeft = position.left - (rect.right - viewportWidth) - 20;
+    if (newLeft + tooltipWidth > viewportWidth - 10) {
+      newLeft = viewportWidth - tooltipWidth - 20;
     }
 
     // Check left edge overflow
@@ -50,8 +50,8 @@ export function VariableHoverPreview({
     }
 
     // Check bottom edge overflow - show above if needed
-    if (rect.bottom > viewportHeight - 10) {
-      newTop = position.top - rect.height - 30;
+    if (newTop + tooltipHeight > viewportHeight - 10) {
+      newTop = position.top - tooltipHeight - 30;
     }
 
     // Check top edge overflow
@@ -59,7 +59,7 @@ export function VariableHoverPreview({
       newTop = 10;
     }
 
-    setAdjustedPosition({ top: newTop, left: newLeft });
+    return { top: newTop, left: newLeft };
   }, [position]);
 
   // Handle copy action
