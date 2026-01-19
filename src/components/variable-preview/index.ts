@@ -1,6 +1,7 @@
 export { VariableContextProvider, useVariableContext, useVariableContextSafe } from "./VariableContextProvider";
 export { VariableInput } from "./VariableInput";
 export { VariableAutocomplete } from "./VariableAutocomplete";
+export { VariableHoverPreview } from "./VariableHoverPreview";
 export {
   useVariableDetection,
   findAllVariables,

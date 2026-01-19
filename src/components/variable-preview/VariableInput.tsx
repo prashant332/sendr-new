@@ -8,13 +8,17 @@ import {
   KeyboardEvent,
   ChangeEvent,
   FocusEvent,
+  MouseEvent,
 } from "react";
 import { useVariableContextSafe } from "./VariableContextProvider";
 import { VariableAutocomplete } from "./VariableAutocomplete";
+import { VariableHoverPreview } from "./VariableHoverPreview";
 import {
   getAutocompleteContext,
   insertVariable,
+  findAllVariables,
   AutocompleteContext,
+  VariableMatch,
 } from "./useVariableDetection";
 
 interface VariableInputProps {
@@ -27,6 +31,7 @@ interface VariableInputProps {
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   onFocus?: (e: FocusEvent<HTMLInputElement>) => void;
   onBlur?: (e: FocusEvent<HTMLInputElement>) => void;
+  onOpenEnvManager?: () => void;
 }
 
 export function VariableInput({
@@ -39,9 +44,11 @@ export function VariableInput({
   onKeyDown: externalOnKeyDown,
   onFocus: externalOnFocus,
   onBlur: externalOnBlur,
+  onOpenEnvManager,
 }: VariableInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   const variableContext = useVariableContextSafe();
 
@@ -56,6 +63,12 @@ export function VariableInput({
     replaceEnd: 0,
   });
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+
+  // Hover preview state
+  const [hoveredVariable, setHoveredVariable] = useState<VariableMatch | null>(null);
+  const [hoverPosition, setHoverPosition] = useState({ top: 0, left: 0 });
+  const [isHoverPreviewVisible, setIsHoverPreviewVisible] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get filtered variables based on search query
   const filteredVariables = variableContext
@@ -222,8 +235,128 @@ export function VariableInput({
     setSelectedIndex(0);
   }, [autocompleteContext.searchQuery]);
 
+  // Find all variables in the current value
+  const variables = findAllVariables(value);
+
+  // Handle variable hover
+  const handleVariableMouseEnter = useCallback(
+    (variable: VariableMatch, event: MouseEvent<HTMLSpanElement>) => {
+      // Clear any existing timeout
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+
+      // Capture rect immediately (event.currentTarget will be null after async)
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position = {
+        top: rect.bottom + 8,
+        left: rect.left,
+      };
+
+      // Delay showing tooltip slightly to avoid flickering
+      hoverTimeoutRef.current = setTimeout(() => {
+        setHoveredVariable(variable);
+        setHoverPosition(position);
+        setIsHoverPreviewVisible(true);
+      }, 200);
+    },
+    []
+  );
+
+  const handleVariableMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    // Delay hiding to allow moving to tooltip
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHoverPreviewVisible(false);
+      setHoveredVariable(null);
+    }, 100);
+  }, []);
+
+  const handleHoverPreviewClose = useCallback(() => {
+    setIsHoverPreviewVisible(false);
+    setHoveredVariable(null);
+  }, []);
+
+  const handleCopyValue = useCallback(() => {
+    // Copy is handled in the tooltip component
+  }, []);
+
+  const handleEditVariable = useCallback(() => {
+    setIsHoverPreviewVisible(false);
+    setHoveredVariable(null);
+    onOpenEnvManager?.();
+  }, [onOpenEnvManager]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Render text with hoverable variable spans
+  const renderOverlayContent = () => {
+    if (variables.length === 0) {
+      return <span className="invisible">{value || placeholder || " "}</span>;
+    }
+
+    const parts: React.ReactNode[] = [];
+    let lastEnd = 0;
+
+    variables.forEach((variable, index) => {
+      // Add text before this variable
+      if (variable.start > lastEnd) {
+        parts.push(
+          <span key={`text-${index}`} className="invisible">
+            {value.slice(lastEnd, variable.start)}
+          </span>
+        );
+      }
+
+      // Add the variable span (visible for hover detection)
+      const isDefined = variableContext?.isDefined(variable.name) ?? false;
+      parts.push(
+        <span
+          key={`var-${index}`}
+          className={`cursor-pointer rounded px-0.5 -mx-0.5 ${
+            isDefined
+              ? "hover:bg-blue-500/20"
+              : "hover:bg-yellow-500/20"
+          }`}
+          onMouseEnter={(e) => handleVariableMouseEnter(variable, e)}
+          onMouseLeave={handleVariableMouseLeave}
+        >
+          {variable.fullMatch}
+        </span>
+      );
+
+      lastEnd = variable.end;
+    });
+
+    // Add remaining text
+    if (lastEnd < value.length) {
+      parts.push(
+        <span key="text-end" className="invisible">
+          {value.slice(lastEnd)}
+        </span>
+      );
+    }
+
+    return parts;
+  };
+
+  // Extract flex-related classes for the container, keep rest for input
+  const containerClasses = className
+    .split(" ")
+    .filter((c) => c.startsWith("flex-") || c === "flex" || c.startsWith("w-") || c === "w-full")
+    .join(" ");
+
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${containerClasses}`}>
       <input
         ref={inputRef}
         type={type}
@@ -235,10 +368,30 @@ export function VariableInput({
         onClick={handleClick}
         placeholder={placeholder}
         disabled={disabled}
-        className={className}
+        className={`w-full ${className}`}
         autoComplete="off"
         spellCheck={false}
       />
+
+      {/* Overlay for hover detection - mirrors input text positioning */}
+      {variables.length > 0 && type !== "password" && (
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+          style={{
+            // Match input padding - adjust these values to match your input styling
+            padding: "0.5rem 0.75rem",
+            fontSize: "0.875rem",
+            lineHeight: "1.25rem",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div className="pointer-events-auto inline">
+            {renderOverlayContent()}
+          </div>
+        </div>
+      )}
 
       <VariableAutocomplete
         isOpen={isAutocompleteOpen}
@@ -250,6 +403,20 @@ export function VariableInput({
         position={dropdownPosition}
         activeEnvironmentName={variableContext?.activeEnvironmentName}
       />
+
+      {/* Hover Preview Tooltip */}
+      {isHoverPreviewVisible && hoveredVariable && (
+        <VariableHoverPreview
+          variableName={hoveredVariable.name}
+          value={variableContext?.getValue(hoveredVariable.name)}
+          isDefined={variableContext?.isDefined(hoveredVariable.name) ?? false}
+          position={hoverPosition}
+          onClose={handleHoverPreviewClose}
+          onCopyValue={handleCopyValue}
+          onEditVariable={handleEditVariable}
+          onCreateVariable={onOpenEnvManager}
+        />
+      )}
     </div>
   );
 }

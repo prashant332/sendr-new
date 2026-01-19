@@ -462,6 +462,7 @@ export default function Home() {
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Enter URL (e.g., {{BASE_URL}}/todos/1)"
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"
+              onOpenEnvManager={() => setShowEnvManager(true)}
             />
 
             <button
