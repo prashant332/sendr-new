@@ -460,7 +460,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - [ ] WebSocket Support
 - [ ] GraphQL Support
 - [ ] Protocol Buffers / gRPC Support (see Section 9 - **NOT YET IMPLEMENTED**)
-- [ ] Variable Interpolation Live Preview (see Section 12 - **PARTIALLY IMPLEMENTED: Phases 24-26 Complete**)
+- [ ] Variable Interpolation Live Preview (see Section 12 - **PARTIALLY IMPLEMENTED: Phases 24-27 Complete**)
 - [x] AI powered script generation (see Section 11 - **IMPLEMENTED**)
 - [x] Distribution (Docker, npm, CI/CD) (see Section 10 - **IMPLEMENTED**)
 
@@ -2776,9 +2776,9 @@ pm.test("No duplicate email addresses", () => {
 
 ## 12. Variable Interpolation Live Preview Plan
 
-> **🚧 STATUS: PARTIALLY IMPLEMENTED (Phases 24-26 Complete)**
+> **🚧 STATUS: PARTIALLY IMPLEMENTED (Phases 24-27 Complete)**
 >
-> This section documents the Variable Interpolation Live Preview feature. **Phases 24-26 are implemented**, providing autocomplete and hover preview functionality for the URL bar. Remaining phases (27-29) will add Monaco editor integration, inline previews, and validation.
+> This section documents the Variable Interpolation Live Preview feature. **Phases 24-27 are implemented**, providing autocomplete, hover preview, and Monaco editor integration. Remaining phases (28-29) will add inline previews and validation polish.
 
 ### 12.1 Overview
 
@@ -3392,12 +3392,74 @@ Hover over any `{{variable}}` in the URL bar to see its current value. Click "Co
 
 ---
 
-#### Phase 27: Monaco Integration
-- [ ] Create variableCompletionProvider for Monaco
-- [ ] Create variableHoverProvider for Monaco
-- [ ] Create variableDecorationProvider (undefined highlighting)
-- [ ] Register providers for JSON, XML, JavaScript languages
-- [ ] Test with Body editor and Script editors
+#### Phase 27: Monaco Integration ✅ IMPLEMENTED
+
+**Status:** Complete
+
+**Files Created:**
+- `src/lib/monaco/variableCompletionProvider.ts` - Autocomplete for `{{` trigger
+- `src/lib/monaco/variableHoverProvider.ts` - Hover tooltips for variables
+- `src/lib/monaco/variableDecorationProvider.ts` - Syntax highlighting for variables
+- `src/lib/monaco/index.ts` - Unified setup and exports
+
+**Updated Files:**
+- `src/components/BodyEditor.tsx` - Integrated Monaco variable support
+- `src/app/page.tsx` - Integrated Monaco variable support for script editors
+
+**Implementation Details:**
+
+1. **variableCompletionProvider** - Autocomplete suggestions:
+   ```typescript
+   // Triggers on '{' character
+   // Shows filtered variable list with values
+   // Auto-inserts closing '}}' if not present
+   // Sorts exact prefix matches first
+   ```
+
+2. **variableHoverProvider** - Hover information:
+   ```typescript
+   // Shows variable name and current value on hover
+   // Displays "Undefined" warning for missing variables
+   // Uses markdown formatting for rich display
+   ```
+
+3. **variableDecorationProvider** - Visual highlighting:
+   ```typescript
+   // CSS classes for defined (blue) and undefined (yellow wavy underline)
+   // Automatic updates on content change (debounced)
+   // Injects styles on first use
+   ```
+
+4. **Unified Setup:**
+   ```typescript
+   setupMonacoVariableSupport(monaco, editor, getVariables, isVariableDefined)
+   // Registers providers once globally
+   // Sets up decorations per editor instance
+   // Returns cleanup function
+   ```
+
+**Supported Languages:**
+- JSON (Body editor)
+- XML (Body editor)
+- JavaScript (Script editors)
+- TypeScript
+- Plaintext
+
+**Features:**
+- Type `{{` to trigger autocomplete in any supported editor
+- Hover over `{{variable}}` to see its current value
+- Undefined variables shown with yellow wavy underline
+- Decorations update automatically as you type
+- Editor re-mounts when environment changes to refresh decorations
+
+**Tasks Completed:**
+- [x] Create variableCompletionProvider for Monaco
+- [x] Create variableHoverProvider for Monaco
+- [x] Create variableDecorationProvider (undefined highlighting)
+- [x] Register providers for JSON, XML, JavaScript languages
+- [x] Integrate with Body editor and Script editors
+
+---
 
 #### Phase 28: Inline Preview
 - [ ] Build VariableInlinePreview component

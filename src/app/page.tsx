@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Editor from "@monaco-editor/react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
+import { setupMonacoVariableSupport } from "@/lib/monaco";
 import { BodyEditor, createDefaultBody, getContentTypeForBody } from "@/components/BodyEditor";
 import { AuthEditor, createDefaultAuth, applyAuth } from "@/components/AuthEditor";
 import { ResponseVisualizer } from "@/components/ResponseVisualizer";
@@ -80,6 +82,56 @@ export default function Home() {
   const setVariables = useEnvironmentStore((state) => state.setVariables);
   const initializeEnv = useEnvironmentStore((state) => state.initialize);
   const isEnvLoaded = useEnvironmentStore((state) => state.isLoaded);
+  const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
+
+  // Monaco editor cleanup refs
+  const preRequestEditorCleanupRef = useRef<(() => void) | null>(null);
+  const testEditorCleanupRef = useRef<(() => void) | null>(null);
+
+  // Get variables for Monaco providers
+  const getVariablesForMonaco = useCallback(() => {
+    const vars = getActiveVariables();
+    return Object.entries(vars).map(([name, value]) => ({ name, value }));
+  }, [getActiveVariables]);
+
+  const isVariableDefinedForMonaco = useCallback(
+    (name: string) => {
+      const vars = getActiveVariables();
+      return name in vars;
+    },
+    [getActiveVariables]
+  );
+
+  // Handle script editor mount
+  const handlePreRequestEditorMount: OnMount = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      if (preRequestEditorCleanupRef.current) {
+        preRequestEditorCleanupRef.current();
+      }
+      preRequestEditorCleanupRef.current = setupMonacoVariableSupport(
+        monaco,
+        editorInstance,
+        getVariablesForMonaco,
+        isVariableDefinedForMonaco
+      );
+    },
+    [getVariablesForMonaco, isVariableDefinedForMonaco]
+  );
+
+  const handleTestEditorMount: OnMount = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      if (testEditorCleanupRef.current) {
+        testEditorCleanupRef.current();
+      }
+      testEditorCleanupRef.current = setupMonacoVariableSupport(
+        monaco,
+        editorInstance,
+        getVariablesForMonaco,
+        isVariableDefinedForMonaco
+      );
+    },
+    [getVariablesForMonaco, isVariableDefinedForMonaco]
+  );
 
   // Initialize AI store
   const { initialize: initializeAI, isInitialized: isAIInitialized } = useAIStore();
@@ -536,17 +588,24 @@ export default function Home() {
                     <div className="text-sm text-zinc-400 mb-2">Pre-request Script</div>
                     <div className="h-32 border border-zinc-700 rounded overflow-hidden">
                       <Editor
+                        key={`pre-request-editor-${activeEnvironmentId}`}
                         height="100%"
                         defaultLanguage="javascript"
                         theme="vs-dark"
                         value={preRequestScript}
                         onChange={(value) => setPreRequestScript(value || "")}
+                        onMount={handlePreRequestEditorMount}
                         options={{
                           minimap: { enabled: false },
                           fontSize: 13,
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
+                          quickSuggestions: {
+                            strings: true,
+                            comments: true,
+                            other: true,
+                          },
                         }}
                       />
                     </div>
@@ -555,17 +614,24 @@ export default function Home() {
                     <div className="text-sm text-zinc-400 mb-2">Test Script</div>
                     <div className="h-32 border border-zinc-700 rounded overflow-hidden">
                       <Editor
+                        key={`test-editor-${activeEnvironmentId}`}
                         height="100%"
                         defaultLanguage="javascript"
                         theme="vs-dark"
                         value={testScript}
                         onChange={(value) => setTestScript(value || "")}
+                        onMount={handleTestEditorMount}
                         options={{
                           minimap: { enabled: false },
                           fontSize: 13,
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
+                          quickSuggestions: {
+                            strings: true,
+                            comments: true,
+                            other: true,
+                          },
                         }}
                       />
                     </div>

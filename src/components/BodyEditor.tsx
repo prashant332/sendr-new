@@ -1,8 +1,12 @@
 "use client";
 
-import Editor from "@monaco-editor/react";
+import { useCallback, useRef } from "react";
+import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { BodyMode, RequestBody } from "@/lib/db";
+import { useEnvironmentStore } from "@/store/environmentStore";
+import { setupMonacoVariableSupport } from "@/lib/monaco";
 
 interface BodyEditorProps {
   body: RequestBody;
@@ -19,6 +23,10 @@ const BODY_MODES: { value: BodyMode; label: string }[] = [
 ];
 
 export function BodyEditor({ body, onChange }: BodyEditorProps) {
+  const cleanupRef = useRef<(() => void) | null>(null);
+  const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
+  const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
+
   const handleModeChange = (mode: BodyMode) => {
     onChange({ ...body, mode });
   };
@@ -41,6 +49,39 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
         return "plaintext";
     }
   };
+
+  // Get variables for Monaco providers
+  const getVariables = useCallback(() => {
+    const vars = getActiveVariables();
+    return Object.entries(vars).map(([name, value]) => ({ name, value }));
+  }, [getActiveVariables]);
+
+  const isVariableDefined = useCallback(
+    (name: string) => {
+      const vars = getActiveVariables();
+      return name in vars;
+    },
+    [getActiveVariables]
+  );
+
+  // Handle Monaco editor mount
+  const handleEditorMount: OnMount = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      // Clean up previous instance if any
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+
+      // Setup variable support
+      cleanupRef.current = setupMonacoVariableSupport(
+        monaco,
+        editorInstance,
+        getVariables,
+        isVariableDefined
+      );
+    },
+    [getVariables, isVariableDefined]
+  );
 
   return (
     <div className="space-y-3">
@@ -71,11 +112,13 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
       {(body.mode === "json" || body.mode === "xml" || body.mode === "raw") && (
         <div className="min-h-[200px] h-[40vh] max-h-[500px] border border-zinc-700 rounded overflow-hidden">
           <Editor
+            key={`body-editor-${activeEnvironmentId}`}
             height="100%"
             language={getEditorLanguage()}
             theme="vs-dark"
             value={body.raw}
             onChange={handleRawChange}
+            onMount={handleEditorMount}
             options={{
               minimap: { enabled: false },
               fontSize: 13,
@@ -84,6 +127,11 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
               automaticLayout: true,
               tabSize: 2,
               wordWrap: "on",
+              quickSuggestions: {
+                strings: true,
+                comments: true,
+                other: true,
+              },
             }}
           />
         </div>
