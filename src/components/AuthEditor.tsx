@@ -104,7 +104,7 @@ export function AuthEditor({ auth, onChange }: AuthEditorProps) {
             </div>
           </div>
           <div className="text-xs text-zinc-500">
-            Header will be: <code className="bg-zinc-800 px-1 rounded">{auth.bearer.headerKey || "Authorization"}: {auth.bearer.prefix || "Bearer"} {"<token>"}</code>
+            Header will be: <code className="bg-zinc-800 px-1 rounded">{auth.bearer.headerKey || "Authorization"}: {auth.bearer.prefix ? `${auth.bearer.prefix} ` : ""}{"<token>"}</code>
           </div>
         </div>
       )}
@@ -251,7 +251,9 @@ export function applyAuth(
   if (auth.type === "bearer") {
     const token = interpolate(auth.bearer.token, variables);
     const headerKey = interpolate(auth.bearer.headerKey || "Authorization", variables);
-    const prefix = interpolate(auth.bearer.prefix || "Bearer", variables);
+    // Only use "Bearer" default if prefix is undefined, not if explicitly empty
+    const rawPrefix = auth.bearer.prefix !== undefined ? auth.bearer.prefix : "Bearer";
+    const prefix = interpolate(rawPrefix, variables);
     if (token) {
       result.headers[headerKey] = prefix ? `${prefix} ${token}` : token;
     }

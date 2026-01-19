@@ -398,6 +398,29 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 | 2 | Clicking second request in collection loads first request | ✅ Fixed - Proper request key handling |
 | 3 | Response Visualizer only renders in Auto mode, manual view types show nothing | ✅ Fixed - Auto/manual view types working |
 | 4 | Adding new environment doesn't do anything when clicking '+' button from Manage environment option in Docker (works in dev mode) | ✅ Fixed - Multiple issues addressed (see details below) |
+| 5 | prefix Bearer is added even when configuring Auth as API-Key header. It should not add Bearer for API key and also should not add any prefix if the prefix is left empty while configuring Bearer token | ✅ Fixed - Empty prefix now correctly handled |
+| 6 | The area provided to set up the request body is too small in height. It should be responsive and adjust height with available screen space and also add scroll if height going beyond visible space to accommodate large payload bodies | ✅ Fixed - Responsive height with min/max bounds |
+| 7 | The environmental variable placeholder is not replaced in the request URL. If I configure url=https://example.com/{{tenant}}/get and tenant as another variable, it will not replace it in url. It does in other places. | ✅ Fixed - Enhanced interpolate function |
+
+### Bug #5-7 Fix Details
+
+**Bug #5 (Bearer Prefix):**
+- Changed `auth.bearer.prefix || "Bearer"` to check for `undefined` specifically
+- Empty string prefix is now respected (no prefix added)
+- Fixed in both `AuthEditor.tsx` and `workflowRunner.ts`
+- Preview display updated to show correct header format
+
+**Bug #6 (Body Editor Height):**
+- Changed from fixed `h-48` (192px) to responsive sizing
+- Now uses `min-h-[200px] h-[40vh] max-h-[500px]`
+- Scales with viewport while maintaining bounds
+- Added `wordWrap: "on"` for long lines
+
+**Bug #7 (URL Variable Interpolation):**
+- Enhanced regex from `\w+` to `[\w.\-]+` to support more variable names
+- Added whitespace tolerance inside braces: `{{ variable }}`
+- Added null/undefined input handling
+- Created shared `src/lib/uuid.ts` for browser-compatible UUID generation
 
 ### Bug #4 Fix Details (Environment Creation in Docker)
 

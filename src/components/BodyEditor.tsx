@@ -69,7 +69,7 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
       )}
 
       {(body.mode === "json" || body.mode === "xml" || body.mode === "raw") && (
-        <div className="h-48 border border-zinc-700 rounded overflow-hidden">
+        <div className="min-h-[200px] h-[40vh] max-h-[500px] border border-zinc-700 rounded overflow-hidden">
           <Editor
             height="100%"
             language={getEditorLanguage()}
@@ -83,6 +83,7 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
               scrollBeyondLastLine: false,
               automaticLayout: true,
               tabSize: 2,
+              wordWrap: "on",
             }}
           />
         </div>

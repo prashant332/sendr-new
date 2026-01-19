@@ -216,7 +216,9 @@ async function executeRequest(
     if (auth.type === "bearer") {
       const token = interpolate(auth.bearer.token, currentVariables);
       const headerKey = interpolate(auth.bearer.headerKey || "Authorization", currentVariables);
-      const prefix = interpolate(auth.bearer.prefix || "Bearer", currentVariables);
+      // Only use "Bearer" default if prefix is undefined, not if explicitly empty
+      const rawPrefix = auth.bearer.prefix !== undefined ? auth.bearer.prefix : "Bearer";
+      const prefix = interpolate(rawPrefix, currentVariables);
       if (token) {
         headers[headerKey] = prefix ? `${prefix} ${token}` : token;
       }
