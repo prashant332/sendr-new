@@ -23,6 +23,10 @@ This file serves as the single source of truth for product requirements, technic
 | **gRPC/Protocol Buffers (Phases 11-18)** | ❌ **Not Implemented** | §9 |
 | Proto Schema Management | ❌ Future | §9.4 |
 | gRPC Proxy & UI | ❌ Future | §9.5 |
+| **Variable Live Preview (Phases 24-29)** | ❌ **Not Implemented** | §12 |
+| Autocomplete & Hover Preview | ❌ Future | §12.4 |
+| Monaco Integration | ❌ Future | §12.5 |
+| Inline Preview & Validation | ❌ Future | §12.8 |
 
 ---
 
@@ -456,6 +460,7 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - [ ] WebSocket Support
 - [ ] GraphQL Support
 - [ ] Protocol Buffers / gRPC Support (see Section 9 - **NOT YET IMPLEMENTED**)
+- [ ] Variable Interpolation Live Preview (see Section 12 - **PARTIALLY IMPLEMENTED: Phases 24-25 Complete**)
 - [x] AI powered script generation (see Section 11 - **IMPLEMENTED**)
 - [x] Distribution (Docker, npm, CI/CD) (see Section 10 - **IMPLEMENTED**)
 
@@ -2766,3 +2771,657 @@ pm.test("No duplicate email addresses", () => {
   pm.expect(uniqueEmails.size).to.equal(emails.length);
 });
 ```
+
+---
+
+## 12. Variable Interpolation Live Preview Plan
+
+> **🚧 STATUS: PARTIALLY IMPLEMENTED (Phases 24-25 Complete)**
+>
+> This section documents the Variable Interpolation Live Preview feature. **Phases 24-25 are implemented**, providing autocomplete functionality for the URL bar. Remaining phases (26-29) will add hover previews, Monaco editor integration, inline previews, and validation.
+
+### 12.1 Overview
+
+**Goal:** Provide real-time assistance when users work with environment variables (`{{variable}}`) across all input fields, improving discoverability and reducing errors.
+
+**Key Features:**
+1. **Autocomplete** - Suggest available variables when typing `{{`
+2. **Hover Preview** - Show resolved value when hovering over `{{variable}}`
+3. **Inline Hints** - Optionally show resolved values inline (like IDE inlay hints)
+4. **Validation Indicators** - Visual feedback for undefined/empty variables
+5. **Quick Actions** - Create missing variables, jump to environment manager
+
+**Target User Experience:**
+- User types `{{` → dropdown appears with available variables
+- User hovers over `{{baseUrl}}` → tooltip shows "https://api.example.com"
+- Undefined variable `{{missing}}` → shows warning indicator
+- Click on warning → option to create the variable
+
+### 12.2 Applicable Locations
+
+| Location | Input Type | Features Needed |
+|----------|------------|-----------------|
+| URL Bar | Single-line input | Autocomplete, Hover, Inline hints, Validation |
+| Headers (Key) | Single-line input | Autocomplete, Hover, Validation |
+| Headers (Value) | Single-line input | Autocomplete, Hover, Validation |
+| Params (Key) | Single-line input | Autocomplete, Hover, Validation |
+| Params (Value) | Single-line input | Autocomplete, Hover, Validation |
+| Body Editor | Monaco Editor | Autocomplete, Hover (via Monaco), Validation |
+| Auth - Bearer Token | Single-line input | Autocomplete, Hover, Validation |
+| Auth - Basic Username | Single-line input | Autocomplete, Hover, Validation |
+| Auth - Basic Password | Single-line input | Autocomplete, Hover, Validation |
+| Auth - API Key Value | Single-line input | Autocomplete, Hover, Validation |
+| Script Editors | Monaco Editor | Autocomplete for `pm.environment.get("` |
+
+### 12.3 Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Variable Context Provider                        │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  • Subscribes to environmentStore                           │   │
+│  │  • Provides: variables, activeEnvName, getVariable()        │   │
+│  │  • Memoized for performance                                 │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            ▼                       ▼                       ▼
+┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
+│ VariableInput     │   │ Monaco Integration│   │ VariableTooltip   │
+│ (Enhanced Input)  │   │ (Body/Scripts)    │   │ (Hover Component) │
+├───────────────────┤   ├───────────────────┤   ├───────────────────┤
+│ • Detects {{      │   │ • Custom language │   │ • Parses position │
+│ • Shows dropdown  │   │   provider        │   │ • Renders preview │
+│ • Inserts variable│   │ • Hover provider  │   │ • Shows actions   │
+│ • Inline preview  │   │ • Completion items│   │                   │
+└───────────────────┘   └───────────────────┘   └───────────────────┘
+```
+
+### 12.4 Component Design
+
+#### 12.4.1 VariableInput Component
+
+A wrapper component that enhances standard inputs with variable support.
+
+```typescript
+interface VariableInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  showInlinePreview?: boolean;  // Show resolved value inline
+  showValidation?: boolean;      // Show warning for undefined vars
+  disabled?: boolean;
+}
+
+// Usage
+<VariableInput
+  value={url}
+  onChange={setUrl}
+  placeholder="https://{{baseUrl}}/api/{{version}}/users"
+  showInlinePreview={true}
+  showValidation={true}
+/>
+```
+
+**Features:**
+- Renders as enhanced `<input>` with overlay for tooltips
+- Detects `{{` typing and shows autocomplete dropdown
+- Positions dropdown below cursor
+- Keyboard navigation (↑↓ to select, Enter to insert, Esc to close)
+- Shows inline preview as subtle text after the input (optional)
+- Underlines undefined variables in red/orange
+
+#### 12.4.2 VariableAutocomplete Dropdown
+
+```typescript
+interface VariableAutocompleteProps {
+  isOpen: boolean;
+  position: { top: number; left: number };
+  searchQuery: string;  // Text after {{
+  onSelect: (variableName: string) => void;
+  onClose: () => void;
+}
+```
+
+**UI Design:**
+```
+┌─────────────────────────────────────┐
+│ 🔍 Search variables...              │
+├─────────────────────────────────────┤
+│ ▸ baseUrl                           │
+│   https://api.example.com           │
+├─────────────────────────────────────┤
+│   authToken                         │
+│   eyJhbGciOiJIUzI1NiIs...           │
+├─────────────────────────────────────┤
+│   userId                            │
+│   user_12345                        │
+├─────────────────────────────────────┤
+│ ⚡ Active: Production               │
+│ [Manage Environments]               │
+└─────────────────────────────────────┘
+```
+
+**Features:**
+- Fuzzy search/filter as user types
+- Shows variable name and truncated value
+- Indicates active environment at bottom
+- Quick link to environment manager
+- Keyboard accessible
+
+#### 12.4.3 VariableHoverPreview Component
+
+```typescript
+interface VariableHoverPreviewProps {
+  variableName: string;
+  position: { x: number; y: number };
+  onClose: () => void;
+  onCreateVariable?: () => void;  // If undefined
+}
+```
+
+**UI Design (Defined Variable):**
+```
+┌────────────────────────────────────┐
+│ {{baseUrl}}                        │
+├────────────────────────────────────┤
+│ Value:                             │
+│ https://api.example.com            │
+├────────────────────────────────────┤
+│ Environment: Production            │
+│ [Copy Value] [Edit Variable]       │
+└────────────────────────────────────┘
+```
+
+**UI Design (Undefined Variable):**
+```
+┌────────────────────────────────────┐
+│ ⚠️ {{missingVar}}                  │
+├────────────────────────────────────┤
+│ Variable not defined in active     │
+│ environment "Production"           │
+├────────────────────────────────────┤
+│ [+ Create Variable] [Change Env]   │
+└────────────────────────────────────┘
+```
+
+#### 12.4.4 Inline Preview Display
+
+For URL bar and key fields, show resolved preview:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ https://{{baseUrl}}/api/{{version}}/users/{{userId}}            │
+│ ─────────────────────────────────────────────────────────────── │
+│ → https://api.example.com/api/v2/users/user_12345               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation Options:**
+1. **Below input** - Show resolved URL in smaller text below
+2. **Tooltip on focus** - Show full resolved value when input is focused
+3. **Toggle button** - Button to show/hide preview
+4. **Split view** - Side-by-side raw/resolved (for body editor)
+
+### 12.5 Monaco Editor Integration
+
+For Body and Script editors, integrate with Monaco's built-in features.
+
+#### 12.5.1 Completion Provider
+
+```typescript
+// Register completion provider for variable syntax
+monaco.languages.registerCompletionItemProvider('json', {
+  triggerCharacters: ['{'],
+  provideCompletionItems: (model, position) => {
+    const textUntilPosition = model.getValueInRange({
+      startLineNumber: position.lineNumber,
+      startColumn: 1,
+      endLineNumber: position.lineNumber,
+      endColumn: position.column,
+    });
+
+    // Check if we're after {{
+    if (!textUntilPosition.endsWith('{{')) {
+      return { suggestions: [] };
+    }
+
+    const variables = getActiveVariables();
+    return {
+      suggestions: Object.entries(variables).map(([name, value]) => ({
+        label: name,
+        kind: monaco.languages.CompletionItemKind.Variable,
+        insertText: `${name}}}`,
+        detail: truncate(value, 50),
+        documentation: `Environment variable: ${value}`,
+      })),
+    };
+  },
+});
+```
+
+#### 12.5.2 Hover Provider
+
+```typescript
+monaco.languages.registerHoverProvider('json', {
+  provideHover: (model, position) => {
+    const word = model.getWordAtPosition(position);
+    if (!word) return null;
+
+    // Find {{variable}} pattern at position
+    const lineContent = model.getLineContent(position.lineNumber);
+    const varMatch = findVariableAtPosition(lineContent, position.column);
+
+    if (!varMatch) return null;
+
+    const variables = getActiveVariables();
+    const value = variables[varMatch.name];
+
+    return {
+      range: new monaco.Range(
+        position.lineNumber, varMatch.start,
+        position.lineNumber, varMatch.end
+      ),
+      contents: [
+        { value: `**{{${varMatch.name}}}**` },
+        { value: value !== undefined
+            ? `Value: \`${value}\``
+            : `⚠️ Variable not defined` },
+      ],
+    };
+  },
+});
+```
+
+#### 12.5.3 Decoration Provider (Validation Highlighting)
+
+```typescript
+// Highlight undefined variables with warning decoration
+function updateVariableDecorations(editor: monaco.editor.IStandaloneCodeEditor) {
+  const model = editor.getModel();
+  if (!model) return;
+
+  const content = model.getValue();
+  const variables = getActiveVariables();
+  const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+
+  // Find all {{variable}} patterns
+  const regex = /\{\{([\w.\-]+)\}\}/g;
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    const varName = match[1];
+    if (!(varName in variables)) {
+      const startPos = model.getPositionAt(match.index);
+      const endPos = model.getPositionAt(match.index + match[0].length);
+
+      decorations.push({
+        range: new monaco.Range(
+          startPos.lineNumber, startPos.column,
+          endPos.lineNumber, endPos.column
+        ),
+        options: {
+          inlineClassName: 'variable-undefined',
+          hoverMessage: { value: `⚠️ Variable "${varName}" is not defined` },
+        },
+      });
+    }
+  }
+
+  editor.deltaDecorations([], decorations);
+}
+```
+
+### 12.6 Data Flow
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     Environment Store                            │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  environments: Environment[]                               │  │
+│  │  activeEnvironmentId: string | null                        │  │
+│  │  getActiveVariables(): Record<string, string>              │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                  VariableContextProvider                         │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  • Wraps app or relevant sections                          │  │
+│  │  • Subscribes to store with useEnvironmentStore            │  │
+│  │  • Provides context value:                                 │  │
+│  │    - variables: Record<string, string>                     │  │
+│  │    - activeEnvName: string | null                          │  │
+│  │    - isDefined: (name: string) => boolean                  │  │
+│  │    - getValue: (name: string) => string | undefined        │  │
+│  │    - getAllNames: () => string[]                           │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         ▼                     ▼                     ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  VariableInput  │  │  Monaco Editors │  │  URL Preview    │
+│  Components     │  │  (Body/Scripts) │  │  Component      │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+### 12.7 State Management
+
+```typescript
+// Context for variable preview features
+interface VariablePreviewContext {
+  // Current variables from active environment
+  variables: Record<string, string>;
+  activeEnvironmentName: string | null;
+
+  // Helper functions
+  isDefined: (variableName: string) => boolean;
+  getValue: (variableName: string) => string | undefined;
+  getAllVariableNames: () => string[];
+  getFilteredVariables: (search: string) => Array<{ name: string; value: string }>;
+
+  // Preview settings
+  showInlinePreviews: boolean;
+  showValidationWarnings: boolean;
+  setShowInlinePreviews: (show: boolean) => void;
+  setShowValidationWarnings: (show: boolean) => void;
+}
+
+// Store for preview-specific settings
+interface VariablePreviewSettings {
+  showInlinePreviews: boolean;      // Show resolved values inline
+  showValidationWarnings: boolean;  // Highlight undefined variables
+  previewPosition: 'below' | 'tooltip' | 'inline';  // Where to show preview
+  truncatePreviewLength: number;    // Max chars for preview values
+}
+```
+
+### 12.8 UI/UX Specifications
+
+#### 12.8.1 Autocomplete Behavior
+
+| Trigger | Action |
+|---------|--------|
+| Type `{{` | Open autocomplete dropdown |
+| Type `{{base` | Filter to variables containing "base" |
+| Press `↓` / `↑` | Navigate dropdown items |
+| Press `Enter` | Insert selected variable with `}}` |
+| Press `Escape` | Close dropdown |
+| Press `Tab` | Insert selected and close |
+| Click outside | Close dropdown |
+| Type `}}` manually | Close dropdown |
+
+#### 12.8.2 Hover Behavior
+
+| Trigger | Action |
+|---------|--------|
+| Hover over `{{var}}` for 300ms | Show preview tooltip |
+| Move mouse away | Hide tooltip after 200ms |
+| Click "Copy Value" | Copy to clipboard |
+| Click "Edit Variable" | Open environment manager |
+| Click "Create Variable" | Open create dialog (for undefined) |
+
+#### 12.8.3 Visual Indicators
+
+| State | Visual Treatment |
+|-------|------------------|
+| Defined variable | Normal text, blue/cyan highlight on hover |
+| Undefined variable | Orange/yellow underline, warning icon |
+| Empty value | Subtle indicator (value is "") |
+| Hoverable | Cursor changes to pointer |
+| Focused autocomplete item | Background highlight |
+
+#### 12.8.4 Keyboard Shortcuts
+
+| Shortcut | Action | Context |
+|----------|--------|---------|
+| `Ctrl+Space` | Force open autocomplete | In variable input |
+| `Escape` | Close autocomplete/tooltip | When open |
+| `Ctrl+Shift+E` | Open environment manager | Global |
+
+### 12.9 Component Hierarchy
+
+```
+src/
+├── components/
+│   ├── variable-preview/
+│   │   ├── VariableContextProvider.tsx    # Context provider
+│   │   ├── VariableInput.tsx              # Enhanced input component
+│   │   ├── VariableAutocomplete.tsx       # Dropdown component
+│   │   ├── VariableHoverPreview.tsx       # Tooltip component
+│   │   ├── VariableInlinePreview.tsx      # Inline resolved value
+│   │   ├── VariableValidationIcon.tsx     # Warning indicator
+│   │   ├── useVariableDetection.ts        # Hook for detecting {{}}
+│   │   ├── useVariableAutocomplete.ts     # Hook for autocomplete logic
+│   │   └── index.ts                       # Exports
+│   └── ... existing components
+├── lib/
+│   ├── monaco/
+│   │   ├── variableCompletionProvider.ts  # Monaco completion
+│   │   ├── variableHoverProvider.ts       # Monaco hover
+│   │   ├── variableDecorationProvider.ts  # Monaco decorations
+│   │   └── index.ts
+│   └── ... existing libs
+└── styles/
+    └── variable-preview.css               # Styles for variable U
+```
+
+### 12.10 Implementation Phases
+
+#### Phase 24: Foundation ✅ IMPLEMENTED
+
+**Status:** Complete
+
+**Files Created:**
+- `src/components/variable-preview/VariableContextProvider.tsx`
+- `src/components/variable-preview/useVariableDetection.ts`
+- `src/components/variable-preview/VariableInput.tsx`
+- `src/components/variable-preview/index.ts`
+
+**Implementation Details:**
+
+1. **VariableContextProvider** - React Context providing variable access:
+   ```typescript
+   interface VariableContextValue {
+     variables: Record<string, string>;
+     activeEnvironmentName: string | null;
+     isDefined: (variableName: string) => boolean;
+     getValue: (variableName: string) => string | undefined;
+     getAllVariableNames: () => string[];
+     getFilteredVariables: (search: string) => Array<{ name: string; value: string }>;
+   }
+   ```
+   - Subscribes to `useEnvironmentStore` for real-time variable updates
+   - Provides `useVariableContext()` and `useVariableContextSafe()` hooks
+
+2. **useVariableDetection Hook** - Variable pattern detection utilities:
+   ```typescript
+   // Find all {{variable}} matches in text
+   findAllVariables(text: string): VariableMatch[]
+
+   // Get autocomplete context based on cursor position
+   getAutocompleteContext(text: string, cursorPosition: number): AutocompleteContext
+
+   // Insert variable at autocomplete position
+   insertVariable(text: string, variableName: string, context: AutocompleteContext)
+   ```
+   - Regex pattern: `/\{\{([\w.\-]*)\}\}/g` for complete variables
+   - Partial pattern: `/\{\{([\w.\-]*)$/` for autocomplete trigger
+
+3. **VariableInput Component** - Enhanced input wrapper:
+   - Props: `value`, `onChange`, `placeholder`, `className`, `disabled`, `type`, `onKeyDown`, `onFocus`, `onBlur`
+   - Manages autocomplete state internally
+   - Calculates dropdown position relative to container
+
+**Tasks Completed:**
+- [x] Create VariableContextProvider with store subscription
+- [x] Build useVariableDetection hook (parse `{{variable}}` from text)
+- [x] Create basic VariableInput component wrapper
+- [ ] Add CSS styles for variable highlighting (deferred to Phase 26+)
+
+---
+
+#### Phase 25: Autocomplete ✅ IMPLEMENTED
+
+**Status:** Complete
+
+**Files Created:**
+- `src/components/variable-preview/VariableAutocomplete.tsx`
+
+**Updated Files:**
+- `src/app/page.tsx` - Integrated VariableInput with URL bar
+
+**Implementation Details:**
+
+1. **VariableAutocomplete Component** - Dropdown UI:
+   ```typescript
+   interface VariableAutocompleteProps {
+     isOpen: boolean;
+     items: Array<{ name: string; value: string }>;
+     selectedIndex: number;
+     onSelect: (variableName: string) => void;
+     onClose: () => void;
+     onNavigate: (direction: "up" | "down") => void;
+     position: { top: number; left: number };
+     maxHeight?: number;
+     activeEnvironmentName?: string | null;
+   }
+   ```
+
+2. **Features:**
+   - Header showing variable count or "No matching variables"
+   - Scrollable list with selected item highlighting (blue background)
+   - Each item shows variable name and truncated value
+   - Footer with environment indicator and keyboard hints
+   - Click-outside detection for closing
+
+3. **Keyboard Navigation:**
+   - `↑` / `↓` - Navigate through variable list
+   - `Enter` - Select highlighted variable
+   - `Tab` - Select highlighted variable
+   - `Escape` - Close autocomplete without selecting
+
+4. **URL Bar Integration:**
+   ```tsx
+   // In page.tsx
+   <VariableContextProvider>
+     ...
+     <VariableInput
+       value={url}
+       onChange={setUrl}
+       onKeyDown={(e) => e.key === "Enter" && handleSend()}
+       placeholder="Enter URL (e.g., {{BASE_URL}}/todos/1)"
+       className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"
+     />
+     ...
+   </VariableContextProvider>
+   ```
+
+**Tasks Completed:**
+- [x] Build VariableAutocomplete dropdown component
+- [x] Implement filtering and positioning logic
+- [x] Add keyboard navigation (↑↓ Enter Tab Escape)
+- [x] Integrate with VariableInput and URL bar
+- [x] Handle edge cases (cursor position, blur delay, scroll into view)
+
+**Usage:**
+Type `{{` in the URL bar to trigger autocomplete. The dropdown shows all available environment variables filtered by what you type after `{{`. Select a variable to insert `{{variableName}}` at the cursor position.
+
+---
+
+#### Phase 26: Hover Preview
+- [ ] Create VariableHoverPreview tooltip component
+- [ ] Implement hover detection logic
+- [ ] Add "Copy Value" and "Edit Variable" actions
+- [ ] Handle undefined variable case with "Create" action
+- [ ] Position tooltip intelligently (avoid overflow)
+
+#### Phase 27: Monaco Integration
+- [ ] Create variableCompletionProvider for Monaco
+- [ ] Create variableHoverProvider for Monaco
+- [ ] Create variableDecorationProvider (undefined highlighting)
+- [ ] Register providers for JSON, XML, JavaScript languages
+- [ ] Test with Body editor and Script editors
+
+#### Phase 28: Inline Preview
+- [ ] Build VariableInlinePreview component
+- [ ] Add toggle for showing/hiding inline previews
+- [ ] Implement URL bar preview (show resolved URL below input)
+- [ ] Add to settings/preferences
+
+#### Phase 29: Validation & Polish
+- [ ] Add VariableValidationIcon for undefined variables
+- [ ] Implement validation highlighting in all VariableInputs
+- [ ] Add keyboard shortcuts
+- [ ] Performance optimization (debounce, memoization)
+- [ ] Accessibility improvements (ARIA labels, focus management)
+- [ ] Add user preference persistence
+
+### 12.11 Integration Points
+
+#### 12.11.1 URL Bar
+```tsx
+// Before
+<input value={url} onChange={(e) => setUrl(e.target.value)} />
+
+// After
+<VariableInput
+  value={url}
+  onChange={setUrl}
+  showInlinePreview={true}
+  showValidation={true}
+/>
+```
+
+#### 12.11.2 KeyValueEditor Enhancement
+```tsx
+// Enhance KeyValueEditor to use VariableInput for value fields
+<VariableInput
+  value={pair.value}
+  onChange={(value) => handleChange(index, 'value', value)}
+  showValidation={true}
+/>
+```
+
+#### 12.11.3 Auth Fields
+```tsx
+// Bearer token input
+<VariableInput
+  value={auth.bearer.token}
+  onChange={(token) => handleBearerChange('token', token)}
+  placeholder="Enter token or {{variable}}"
+/>
+```
+
+### 12.12 Performance Considerations
+
+1. **Debounce autocomplete** - Don't filter on every keystroke (100-150ms delay)
+2. **Memoize variable list** - Cache filtered results
+3. **Lazy load Monaco providers** - Only register when editor mounts
+4. **Virtual scrolling** - For environments with many variables (>50)
+5. **Throttle hover detection** - Prevent excessive tooltip renders
+6. **Use CSS containment** - Isolate dropdown/tooltip rendering
+
+### 12.13 Accessibility
+
+1. **ARIA attributes** - Proper roles for autocomplete (listbox, option)
+2. **Focus management** - Return focus after dropdown closes
+3. **Keyboard navigation** - Full keyboard support for all features
+4. **Screen reader** - Announce selected item, variable values
+5. **Color contrast** - Ensure warning indicators visible in all themes
+6. **Motion** - Respect prefers-reduced-motion for animations
+
+### 12.14 Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Autocomplete latency | <50ms to show dropdown |
+| Hover preview latency | <100ms to show tooltip |
+| Variable detection accuracy | 100% of valid patterns |
+| Keyboard accessibility | Full navigation without mouse |
+| Memory overhead | <5MB additional |
+| No layout shift | Dropdowns don't cause content jump |

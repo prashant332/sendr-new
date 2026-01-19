@@ -14,6 +14,7 @@ import { SaveRequestModal } from "@/components/SaveRequestModal";
 import { WorkflowRunner } from "@/components/WorkflowRunner";
 import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
+import { VariableContextProvider, VariableInput } from "@/components/variable-preview";
 import { useEnvironmentStore } from "@/store/environmentStore";
 import { useAIStore } from "@/store/aiStore";
 import { interpolate } from "@/lib/interpolate";
@@ -402,6 +403,7 @@ export default function Home() {
   };
 
   return (
+    <VariableContextProvider>
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       {/* Sidebar */}
       <Sidebar
@@ -454,10 +456,9 @@ export default function Home() {
               <option value="PATCH">PATCH</option>
             </select>
 
-            <input
-              type="text"
+            <VariableInput
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={setUrl}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Enter URL (e.g., {{BASE_URL}}/todos/1)"
               className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"
@@ -811,5 +812,6 @@ export default function Home() {
         existingTestScript={testScript}
       />
     </div>
+    </VariableContextProvider>
   );
 }
