@@ -14,6 +14,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { CreateCollectionModal } from "@/components/CreateCollectionModal";
 import { SaveRequestModal } from "@/components/SaveRequestModal";
 import { WorkflowRunner } from "@/components/WorkflowRunner";
+import { ImportExportModal } from "@/components/ImportExportModal";
 import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
 import { VariableContextProvider, VariableInput, VariableInlinePreview } from "@/components/variable-preview";
@@ -71,6 +72,7 @@ export default function Home() {
   const [showSaveRequest, setShowSaveRequest] = useState(false);
   const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string } | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [showImportExport, setShowImportExport] = useState(false);
   const [, setActiveScriptTab] = useState<ScriptType>("test");
 
   // Active request tracking
@@ -466,6 +468,7 @@ export default function Home() {
         onNewCollection={() => setShowCreateCollection(true)}
         onNewRequest={() => setShowSaveRequest(true)}
         onRunCollection={(id, name) => setRunnerCollection({ id, name })}
+        onImportExport={() => setShowImportExport(true)}
       />
 
       {/* Main Content */}
@@ -921,6 +924,10 @@ export default function Home() {
         requestDetails={{ method, url }}
         existingPreRequestScript={preRequestScript}
         existingTestScript={testScript}
+      />
+      <ImportExportModal
+        isOpen={showImportExport}
+        onClose={() => setShowImportExport(false)}
       />
     </div>
     </VariableContextProvider>

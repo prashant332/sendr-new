@@ -13,6 +13,10 @@ This file serves as the single source of truth for product requirements, technic
 | Scripting Engine (pm API) | ✅ Implemented | §5.3 |
 | Workflow Runner | ✅ Implemented | §5.5 |
 | Response Visualizer | ✅ Implemented | §5.9 |
+| **Import/Export** | ✅ **100% Complete** | §7.5 |
+| Postman Collection v2.1 Import | ✅ Implemented | §7.5 |
+| Variable API Normalization | ✅ Implemented | §7.5 |
+| Sendr JSON Export | ✅ Implemented | §7.5 |
 | **AI Script Generation (Phases 19-23)** | ✅ **~95% Complete** | §11 |
 | LLM Adapters (OpenAI, Gemini, Anthropic, Ollama) | ✅ Implemented | §11.4 |
 | Quick Actions & Context Builder | ✅ Implemented | §11.9 |
@@ -451,11 +455,104 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 
 ---
 
+## 7.5 Import/Export Feature
+
+### Supported Formats
+
+| Format | Import | Export |
+|--------|--------|--------|
+| Sendr JSON | ✅ | ✅ |
+| Postman Collection v2.1 | ✅ | ❌ |
+
+### Sendr JSON Format
+```typescript
+interface SendrExportFormat {
+  version: "1.0";
+  exportedAt: string;
+  collections: {
+    name: string;
+    requests: {
+      name: string;
+      method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+      url: string;
+      headers: { key: string; value: string; active: boolean }[];
+      params: { key: string; value: string; active: boolean }[];
+      body: RequestBody;
+      auth: RequestAuth;
+      preRequestScript: string;
+      testScript: string;
+    }[];
+  }[];
+}
+```
+
+### Postman Import Support
+- Supports Postman Collection v2.1 schema
+- Converts request body (raw JSON/XML, form-data, urlencoded)
+- Converts authentication (Bearer, Basic, API Key)
+- Imports pre-request and test scripts (with automatic normalization)
+- Handles nested folders (flattened with path prefix)
+- **Collection variables** are imported as a Sendr environment (named "{Collection Name} Variables")
+
+### Script Compatibility
+
+Postman scripts are imported with **automatic variable API normalization**:
+
+| Postman API | Sendr Support |
+|-------------|---------------|
+| `pm.environment.get/set` | ✅ Supported |
+| `pm.response.json()` | ✅ Supported |
+| `pm.response.code/status/headers` | ✅ Supported |
+| `pm.test(name, fn)` | ✅ Supported |
+| `pm.expect()` (Chai assertions) | ✅ Supported |
+| `console.log/error/warn` | ✅ Supported |
+| `pm.globals.get/set` | ✅ **Normalized** → `pm.environment.get/set` |
+| `pm.collectionVariables.get/set` | ✅ **Normalized** → `pm.environment.get/set` |
+| `pm.variables.get` | ✅ **Normalized** → `pm.environment.get` |
+| `pm.request.*` | ❌ Not supported |
+| `pm.sendRequest()` | ❌ Not supported |
+| `pm.cookies.*` | ❌ Not supported |
+| `pm.iterationData.*` | ❌ Not supported |
+
+### Variable Normalization
+
+During import, Sendr automatically transforms Postman's different variable scopes into the unified `pm.environment` API:
+
+```javascript
+// Postman script (before import)
+pm.globals.set("token", response.token);
+pm.collectionVariables.get("baseUrl");
+pm.variables.get("userId");
+
+// Sendr script (after import)
+pm.environment.set("token", response.token);
+pm.environment.get("baseUrl");
+pm.environment.get("userId");
+```
+
+**Benefits:**
+- Collection variables are imported as a Sendr environment, making them available to all requests
+- Scripts using `pm.globals`, `pm.collectionVariables`, or `pm.variables` work without modification
+- A warning is shown during import when scripts are normalized
+
+**Note:** Select the imported environment ("{Collection Name} Variables") to use the collection's variables.
+
+### Usage
+1. Click the upload icon (↑) in the Sidebar header
+2. **Import:** Drag and drop a JSON file or click to browse
+3. **Export:** Select collections to export (or all) and click "Export to JSON"
+
+### Files
+- `src/lib/importExport.ts` - Import/export utilities
+- `src/components/ImportExportModal.tsx` - UI modal
+
+---
+
 ## 8. Future Enhancements
 
 - [ ] OAuth 2.0 Authentication (Authorization Code, Client Credentials flows)
 - [ ] Request History
-- [ ] Import/Export (Postman collection import, JSON export)
+- [x] Import/Export (Postman collection import, JSON export) - **IMPLEMENTED**
 - [ ] Code Generation (cURL, JavaScript, Python snippets)
 - [ ] WebSocket Support
 - [ ] GraphQL Support

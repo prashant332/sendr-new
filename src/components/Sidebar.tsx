@@ -15,6 +15,7 @@ interface SidebarProps {
   onNewCollection: () => void;
   onNewRequest: () => void;
   onRunCollection: (collectionId: string, collectionName: string) => void;
+  onImportExport: () => void;
 }
 
 export function Sidebar({
@@ -23,6 +24,7 @@ export function Sidebar({
   onNewCollection,
   onNewRequest,
   onRunCollection,
+  onImportExport,
 }: SidebarProps) {
   const collections = useCollections();
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
@@ -54,12 +56,25 @@ export function Sidebar({
       <div className="p-3 border-b border-zinc-800">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-zinc-300">Collections</span>
-          <button
-            onClick={onNewCollection}
-            className="text-xs text-blue-400 hover:text-blue-300"
-          >
-            + New
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onImportExport}
+              className="text-xs text-zinc-400 hover:text-zinc-200"
+              title="Import / Export"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </button>
+            <button
+              onClick={onNewCollection}
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              + New
+            </button>
+          </div>
         </div>
         <button
           onClick={onNewRequest}
