@@ -7,6 +7,7 @@ export type { Environment };
 interface EnvironmentState {
   environments: Environment[];
   activeEnvironmentId: string | null;
+  showInlinePreview: boolean;
   isLoaded: boolean;
   isInitializing: boolean;
 
@@ -20,6 +21,7 @@ interface EnvironmentState {
   getActiveVariables: () => Record<string, string>;
   setVariable: (key: string, value: string) => Promise<void>;
   setVariables: (variables: Record<string, string>) => Promise<void>;
+  setShowInlinePreview: (show: boolean) => Promise<void>;
 }
 
 const SETTINGS_ID = "app-settings";
@@ -54,6 +56,7 @@ const initState = {
 export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
   activeEnvironmentId: null,
+  showInlinePreview: true, // Default to showing inline preview
   isLoaded: false,
   isInitializing: false,
 
@@ -81,6 +84,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
         set({
           environments,
           activeEnvironmentId: settings?.activeEnvironmentId ?? null,
+          showInlinePreview: settings?.showInlinePreview ?? true,
           isLoaded: true,
           isInitializing: false,
         });
@@ -211,6 +215,17 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
           : env
       ),
     }));
+  },
+
+  setShowInlinePreview: async (show: boolean) => {
+    await ensureDbReady();
+    const state = get();
+    await db.settings.put({
+      id: SETTINGS_ID,
+      activeEnvironmentId: state.activeEnvironmentId,
+      showInlinePreview: show,
+    });
+    set({ showInlinePreview: show });
   },
 }));
 

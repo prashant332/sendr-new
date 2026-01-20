@@ -16,7 +16,7 @@ import { SaveRequestModal } from "@/components/SaveRequestModal";
 import { WorkflowRunner } from "@/components/WorkflowRunner";
 import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
-import { VariableContextProvider, VariableInput } from "@/components/variable-preview";
+import { VariableContextProvider, VariableInput, VariableInlinePreview } from "@/components/variable-preview";
 import { useEnvironmentStore } from "@/store/environmentStore";
 import { useAIStore } from "@/store/aiStore";
 import { interpolate } from "@/lib/interpolate";
@@ -83,6 +83,8 @@ export default function Home() {
   const initializeEnv = useEnvironmentStore((state) => state.initialize);
   const isEnvLoaded = useEnvironmentStore((state) => state.isLoaded);
   const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
+  const showInlinePreview = useEnvironmentStore((state) => state.showInlinePreview);
+  const setShowInlinePreview = useEnvironmentStore((state) => state.setShowInlinePreview);
 
   // Monaco editor cleanup refs
   const preRequestEditorCleanupRef = useRef<(() => void) | null>(null);
@@ -508,21 +510,63 @@ export default function Home() {
               <option value="PATCH">PATCH</option>
             </select>
 
-            <VariableInput
-              value={url}
-              onChange={setUrl}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Enter URL (e.g., {{BASE_URL}}/todos/1)"
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"
-              onOpenEnvManager={() => setShowEnvManager(true)}
-            />
+            <div className="flex-1 flex flex-col">
+              <VariableInput
+                value={url}
+                onChange={setUrl}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                placeholder="Enter URL (e.g., {{BASE_URL}}/todos/1)"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm"
+                onOpenEnvManager={() => setShowEnvManager(true)}
+              />
+              {showInlinePreview && url && (
+                <VariableInlinePreview
+                  value={url}
+                  className="mt-1 px-1"
+                />
+              )}
+            </div>
 
             <button
               onClick={handleSend}
               disabled={loading || !url.trim()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed px-6 py-2 rounded font-medium text-sm transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed px-6 py-2 rounded font-medium text-sm transition-colors self-start"
             >
               {loading ? "Sending..." : "Send"}
+            </button>
+
+            <button
+              onClick={() => setShowInlinePreview(!showInlinePreview)}
+              className={`p-2 rounded transition-colors self-start ${
+                showInlinePreview
+                  ? "bg-blue-600/20 text-blue-400 hover:bg-blue-600/30"
+                  : "bg-zinc-700 text-zinc-400 hover:bg-zinc-600"
+              }`}
+              title={showInlinePreview ? "Hide variable preview" : "Show variable preview"}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {showInlinePreview ? (
+                  <>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </>
+                )}
+              </svg>
             </button>
           </div>
 

@@ -2,6 +2,7 @@ export { VariableContextProvider, useVariableContext, useVariableContextSafe } f
 export { VariableInput } from "./VariableInput";
 export { VariableAutocomplete } from "./VariableAutocomplete";
 export { VariableHoverPreview } from "./VariableHoverPreview";
+export { VariableInlinePreview } from "./VariableInlinePreview";
 export {
   useVariableDetection,
   findAllVariables,

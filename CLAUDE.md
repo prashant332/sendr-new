@@ -3461,19 +3461,21 @@ Hover over any `{{variable}}` in the URL bar to see its current value. Click "Co
 
 ---
 
-#### Phase 28: Inline Preview
-- [ ] Build VariableInlinePreview component
-- [ ] Add toggle for showing/hiding inline previews
-- [ ] Implement URL bar preview (show resolved URL below input)
-- [ ] Add to settings/preferences
+#### Phase 28: Inline Preview ✅
+- [x] Build VariableInlinePreview component
+- [x] Add toggle for showing/hiding inline previews
+- [x] Implement URL bar preview (show resolved URL below input)
+- [x] Add to settings/preferences (persisted in IndexedDB)
 
 #### Phase 29: Validation & Polish
 - [ ] Add VariableValidationIcon for undefined variables
 - [ ] Implement validation highlighting in all VariableInputs
 - [ ] Add keyboard shortcuts
 - [ ] Performance optimization (debounce, memoization)
-- [ ] Accessibility improvements (ARIA labels, focus management)
 - [ ] Add user preference persistence
+
+#### Phase 30: Create variable from Request Body
+- [ ] Add option to create a variable from a value within Request body
 
 ### 12.11 Integration Points
 
