@@ -5,7 +5,7 @@
  * - Sendr JSON export/import
  */
 
-import { db, Collection, SavedRequest, RequestBody, RequestAuth } from "./db";
+import { db, Collection, SavedRequest, RequestBody, RequestAuth, HttpMethod, GrpcConfig } from "./db";
 import { generateUUID } from "./uuid";
 
 // ============================================================================
@@ -25,7 +25,7 @@ export interface SendrExportCollection {
 
 export interface SendrExportRequest {
   name: string;
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  method: HttpMethod;
   url: string;
   headers: { key: string; value: string; active: boolean }[];
   params: { key: string; value: string; active: boolean }[];
@@ -33,6 +33,7 @@ export interface SendrExportRequest {
   auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
+  grpcConfig?: GrpcConfig; // Only for gRPC requests
 }
 
 // ============================================================================
@@ -157,6 +158,7 @@ export async function exportToJson(collectionIds?: string[]): Promise<SendrExpor
         auth: req.auth,
         preRequestScript: req.preRequestScript,
         testScript: req.testScript,
+        ...(req.grpcConfig ? { grpcConfig: req.grpcConfig } : {}),
       })),
     });
   }
@@ -233,6 +235,7 @@ export async function importFromSendrJson(data: SendrExportFormat): Promise<Impo
             auth: request.auth || createDefaultAuth(),
             preRequestScript: request.preRequestScript || "",
             testScript: request.testScript || "",
+            ...(request.grpcConfig ? { grpcConfig: request.grpcConfig } : {}),
           });
           result.requestsImported++;
         } catch (err) {

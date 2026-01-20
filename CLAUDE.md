@@ -24,9 +24,10 @@ This file serves as the single source of truth for product requirements, technic
 | Docker & docker-compose | ✅ Implemented | §10.2 |
 | npm/npx CLI | ✅ Implemented | §10.3 |
 | CI/CD Workflows | ✅ Implemented | §10.2.5 |
-| **gRPC/Protocol Buffers (Phases 11-18)** | ❌ **Not Implemented** | §9 |
-| Proto Schema Management | ❌ Future | §9.4 |
-| gRPC Proxy & UI | ❌ Future | §9.5 |
+| **gRPC/Protocol Buffers (Phases 11-18)** | ⚠️ **~70% Complete** | §9 |
+| Proto Schema Management | ✅ Implemented | §9.4 |
+| gRPC Proxy & UI (Unary) | ✅ Implemented | §9.5 |
+| Streaming Support | ❌ Future | §9.6 |
 | **Variable Live Preview (Phases 24-29)** | ❌ **Not Implemented** | §12 |
 | Autocomplete & Hover Preview | ❌ Future | §12.4 |
 | Monaco Integration | ❌ Future | §12.5 |
@@ -583,9 +584,9 @@ pm.environment.get("userId");
 
 ## 9. Protocol Buffers / gRPC Support Plan
 
-> **⚠️ STATUS: NOT IMPLEMENTED**
+> **⚠️ STATUS: PARTIALLY IMPLEMENTED (~70%)**
 >
-> This section documents the **planned** gRPC/Protocol Buffers support. None of the features described in this section have been implemented yet. The entire Section 9 (Phases 11-18) remains as a future roadmap.
+> Phases 11-15 (Unary gRPC support) have been implemented. This includes proto schema management, gRPC proxy endpoint, request/response UI, and collections integration. Phases 16-18 (Workflow runner integration, Server streaming, Bidirectional streaming) remain as future roadmap.
 
 ### 9.1 Overview
 
@@ -1334,64 +1335,64 @@ pm.test("gRPC status is OK", () => {
 
 ### 9.6 Implementation Phases
 
-#### Phase 11: Proto Schema Foundation
-- [ ] Install protobufjs library
-- [ ] Create ProtoSchemas table in Dexie database (with `path` field for import resolution)
-- [ ] Implement ProtoSchemaManager component
-- [ ] Add proto file upload (drag-drop + file picker)
-- [ ] Support folder/ZIP upload with path preservation
-- [ ] Add "Proto Root Path" prefix option for upload
-- [ ] Integrate Monaco Editor with protobuf language support
-- [ ] Parse proto files and extract services/methods/messages
-- [ ] Bundle well-known Google proto types (timestamp, duration, empty, wrappers, any, struct, field_mask)
-- [ ] Implement import resolution algorithm (absolute + relative paths)
-- [ ] Build transitive dependency graph for nested imports
-- [ ] Show import resolution errors with actionable suggestions
-- [ ] Re-validate dependent schemas when new files are added
-- [ ] Validate proto syntax with error highlighting
+#### Phase 11: Proto Schema Foundation ✅
+- [x] Install protobufjs library
+- [x] Create ProtoSchemas table in Dexie database (with `path` field for import resolution)
+- [x] Implement ProtoSchemaManager component
+- [x] Add proto file upload (drag-drop + file picker)
+- [ ] Support folder/ZIP upload with path preservation (future)
+- [ ] Add "Proto Root Path" prefix option for upload (future)
+- [x] Integrate Monaco Editor with protobuf language support
+- [x] Parse proto files and extract services/methods/messages
+- [x] Bundle well-known Google proto types (timestamp, duration, empty, wrappers, any, struct, field_mask)
+- [ ] Implement import resolution algorithm (absolute + relative paths) (partial)
+- [ ] Build transitive dependency graph for nested imports (future)
+- [x] Show import resolution errors with actionable suggestions
+- [ ] Re-validate dependent schemas when new files are added (future)
+- [x] Validate proto syntax with error highlighting
 
-#### Phase 12: gRPC Proxy Implementation
-- [ ] Install @grpc/grpc-js and @grpc/proto-loader
-- [ ] Create `/api/grpc-proxy` endpoint
-- [ ] Implement dynamic service/method invocation
-- [ ] Handle TLS/insecure connections
-- [ ] Implement request timeout handling
-- [ ] Map gRPC errors to structured response format
-- [ ] Add gRPC metadata (headers) support
-- [ ] Return response metadata and trailers
+#### Phase 12: gRPC Proxy Implementation ✅
+- [x] Install @grpc/grpc-js and @grpc/proto-loader
+- [x] Create `/api/grpc-proxy` endpoint
+- [x] Implement dynamic service/method invocation
+- [x] Handle TLS/insecure connections
+- [x] Implement request timeout handling
+- [x] Map gRPC errors to structured response format
+- [x] Add gRPC metadata (headers) support
+- [x] Return response metadata and trailers
 
-#### Phase 13: gRPC Request UI
-- [ ] Add protocol toggle (HTTP/gRPC) to URL bar
-- [ ] Create GrpcRequestEditor component
-- [ ] Implement service/method selector dropdowns
-- [ ] Add message editor with proto-aware auto-completion
-- [ ] Implement metadata editor with KeyValueEditor (lowercase key validation)
-- [ ] Add "Quick Add" buttons for common metadata (Authorization, Request ID, etc.)
-- [ ] Add TLS configuration options
-- [ ] Support variable interpolation in messages and metadata values
-- [ ] Integrate Auth tab to auto-generate metadata entries
-- [ ] Add binary metadata support (keys ending in `-bin` with base64 encoding)
+#### Phase 13: gRPC Request UI ✅
+- [x] Add protocol toggle (HTTP/gRPC) to URL bar (GRPC as method type)
+- [x] Create GrpcRequestEditor component
+- [x] Implement service/method selector dropdowns
+- [x] Add message editor with JSON support
+- [x] Implement metadata editor with KeyValueEditor (lowercase key validation)
+- [ ] Add "Quick Add" buttons for common metadata (future)
+- [x] Add TLS configuration options
+- [x] Support variable interpolation in messages and metadata values
+- [x] Integrate Auth tab to auto-generate metadata entries
+- [x] Add binary metadata support (keys ending in `-bin` with base64 encoding)
 
-#### Phase 14: gRPC Response Handling
-- [ ] Extend response state to handle gRPC responses
-- [ ] Add gRPC status code display with human-readable names
-- [ ] Create Metadata tab with key-value table for response metadata
-- [ ] Create Trailers tab with key-value table for gRPC trailers
-- [ ] Integrate Response Visualizer for gRPC responses
-- [ ] Add raw binary view (hex dump)
-- [ ] Support gRPC response in test scripts (`pm.response.json()`)
-- [ ] Add `pm.response.metadata()` and `pm.response.trailers()` to scripting API
+#### Phase 14: gRPC Response Handling ✅
+- [x] Extend response state to handle gRPC responses
+- [x] Add gRPC status code display with human-readable names
+- [x] Create Metadata tab with key-value table for response metadata
+- [x] Create Trailers tab with key-value table for gRPC trailers
+- [x] Integrate Response Visualizer for gRPC responses
+- [ ] Add raw binary view (hex dump) (future)
+- [x] Support gRPC response in test scripts (`pm.response.json()`)
+- [ ] Add `pm.response.metadata()` and `pm.response.trailers()` to scripting API (future)
 
-#### Phase 15: gRPC Collections Integration
-- [ ] Extend SavedRequest model with grpcConfig (including metadata array)
-- [ ] Update save/load logic for gRPC requests
-- [ ] Add gRPC requests to sidebar with ⚡ icon and service/method display
-- [ ] Implement auto-save for gRPC request changes
-- [ ] Add collection-level proto schema association (global vs collection-scoped)
-- [ ] Create "Add gRPC Request" modal with method multi-select from proto
-- [ ] Add Collection Settings panel for managing proto schema associations
-- [ ] Support bulk-adding multiple service methods as separate requests
-- [ ] Add `defaultProtoSchemaIds` to Collection model for dropdown ordering
+#### Phase 15: gRPC Collections Integration ✅
+- [x] Extend SavedRequest model with grpcConfig (including metadata array)
+- [x] Update save/load logic for gRPC requests
+- [ ] Add gRPC requests to sidebar with ⚡ icon and service/method display (future)
+- [x] Implement auto-save for gRPC request changes
+- [x] Add collection-level proto schema association (global vs collection-scoped)
+- [ ] Create "Add gRPC Request" modal with method multi-select from proto (future)
+- [ ] Add Collection Settings panel for managing proto schema associations (future)
+- [ ] Support bulk-adding multiple service methods as separate requests (future)
+- [ ] Add `defaultProtoSchemaIds` to Collection model for dropdown ordering (future)
 
 #### Phase 16: gRPC Workflow Runner
 - [ ] Extend workflowRunner to handle gRPC requests
@@ -1532,23 +1533,20 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── proxy/route.ts         # Existing HTTP proxy
-│   │   └── grpc-proxy/route.ts    # NEW: gRPC proxy endpoint
-│   └── page.tsx
+│   │   └── grpc-proxy/route.ts    # ✅ gRPC proxy endpoint
+│   └── page.tsx                   # ✅ Updated with gRPC support
 ├── components/
 │   ├── ... existing components ...
-│   ├── GrpcRequestEditor.tsx      # NEW: gRPC request configuration
-│   ├── ProtoSchemaManager.tsx     # NEW: Proto file management modal
-│   ├── ProtoEditor.tsx            # NEW: Monaco editor for .proto files
-│   ├── ServiceMethodSelector.tsx  # NEW: Dropdowns for service/method
-│   └── GrpcResponseViewer.tsx     # NEW: gRPC-specific response tabs
+│   ├── GrpcRequestEditor.tsx      # ✅ gRPC request configuration
+│   └── ProtoSchemaManager.tsx     # ✅ Proto file management modal
+├── hooks/
+│   └── useProtoSchemas.ts         # ✅ CRUD hooks for proto schemas
 ├── lib/
 │   ├── ... existing libs ...
-│   ├── protoParser.ts             # NEW: Parse .proto files
-│   ├── protoImportResolver.ts     # NEW: Resolve imports with relative/absolute paths
-│   ├── wellKnownProtos.ts         # NEW: Bundled Google proto definitions
-│   └── grpcClient.ts              # NEW: gRPC client utilities
-└── store/
-    └── protoSchemaStore.ts        # NEW: Zustand store for proto schemas
+│   ├── db.ts                      # ✅ Updated with gRPC types and ProtoSchema table
+│   └── grpc/
+│       ├── protoParser.ts         # ✅ Parse .proto files with protobufjs
+│       └── wellKnownProtos.ts     # ✅ Bundled Google proto definitions
 ```
 
 ### 9.11 Success Metrics

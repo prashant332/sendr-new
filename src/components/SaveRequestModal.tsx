@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { useCollections, createRequest } from "@/hooks/useCollections";
 import type { KeyValuePair } from "@/components/KeyValueEditor";
-import type { RequestBody, RequestAuth } from "@/lib/db";
-
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+import type { RequestBody, RequestAuth, HttpMethod, GrpcConfig } from "@/lib/db";
 
 interface RequestData {
   method: HttpMethod;
@@ -16,6 +14,7 @@ interface RequestData {
   auth: RequestAuth;
   preRequestScript: string;
   testScript: string;
+  grpcConfig?: GrpcConfig;
 }
 
 interface SaveRequestModalProps {
@@ -48,6 +47,7 @@ export function SaveRequestModal({
         auth: requestData.auth,
         preRequestScript: requestData.preRequestScript,
         testScript: requestData.testScript,
+        ...(requestData.grpcConfig ? { grpcConfig: requestData.grpcConfig } : {}),
       });
       onSaved(id);
       onClose();

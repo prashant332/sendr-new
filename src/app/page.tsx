@@ -17,18 +17,19 @@ import { WorkflowRunner } from "@/components/WorkflowRunner";
 import { ImportExportModal } from "@/components/ImportExportModal";
 import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
+import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
+import { GrpcRequestEditor, createDefaultGrpcConfig, getGrpcRequestMessage } from "@/components/GrpcRequestEditor";
+import { useProtoSchema } from "@/hooks/useProtoSchemas";
 import { VariableContextProvider, VariableInput, VariableInlinePreview } from "@/components/variable-preview";
 import { useEnvironmentStore } from "@/store/environmentStore";
 import { useAIStore } from "@/store/aiStore";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult, ScriptContext } from "@/lib/scriptRunner";
 import { updateRequest, type SavedRequest } from "@/hooks/useCollections";
-import { RequestBody, RequestAuth, ResponseTemplate } from "@/lib/db";
+import { RequestBody, RequestAuth, ResponseTemplate, HttpMethod, GrpcConfig } from "@/lib/db";
 import { ScriptType } from "@/lib/ai/types";
-
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-type RequestTab = "params" | "headers" | "auth" | "body" | "scripts";
-type ResponseTab = "rendered" | "body" | "headers" | "cookies" | "raw";
+type RequestTab = "params" | "headers" | "auth" | "body" | "scripts" | "grpc";
+type ResponseTab = "rendered" | "body" | "headers" | "cookies" | "raw" | "metadata" | "trailers";
 
 interface ApiResponse {
   status: number;
@@ -44,12 +45,24 @@ interface ErrorResponse {
   code?: string;
 }
 
+interface GrpcResponse {
+  data: unknown;
+  metadata: Record<string, string>;
+  trailers: Record<string, string>;
+  status: {
+    code: number;
+    details: string;
+  };
+  time: number;
+  size: number;
+}
+
 export default function Home() {
   // Request state
   const [method, setMethod] = useState<HttpMethod>("GET");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState<ApiResponse | ErrorResponse | null>(null);
+  const [response, setResponse] = useState<ApiResponse | GrpcResponse | ErrorResponse | null>(null);
   const [responseTab, setResponseTab] = useState<ResponseTab>("rendered");
 
   // Request configuration
@@ -58,7 +71,11 @@ export default function Home() {
   const [headers, setHeaders] = useState<KeyValuePair[]>([{ key: "", value: "", active: true }]);
   const [body, setBody] = useState<RequestBody>(createDefaultBody());
   const [auth, setAuth] = useState<RequestAuth>(createDefaultAuth());
+  const [grpcConfig, setGrpcConfig] = useState<GrpcConfig>(createDefaultGrpcConfig());
   const [responseTemplate, setResponseTemplate] = useState<ResponseTemplate | undefined>(undefined);
+
+  // gRPC specific
+  const selectedProtoSchema = useProtoSchema(grpcConfig.protoSchemaId || null);
 
   // Scripts
   const [preRequestScript, setPreRequestScript] = useState("");
@@ -73,6 +90,7 @@ export default function Home() {
   const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string } | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showImportExport, setShowImportExport] = useState(false);
+  const [showProtoManager, setShowProtoManager] = useState(false);
   const [, setActiveScriptTab] = useState<ScriptType>("test");
 
   // Active request tracking
@@ -154,6 +172,15 @@ export default function Home() {
     }
   }, [isAIInitialized, initializeAI]);
 
+  // Switch to appropriate tab when method changes
+  useEffect(() => {
+    if (method === "GRPC") {
+      setActiveTab("grpc");
+    } else if (activeTab === "grpc") {
+      setActiveTab("params");
+    }
+  }, [method, activeTab]);
+
   // Handle AI-generated script insertion
   const handleInsertScript = (script: string, scriptType: ScriptType) => {
     if (scriptType === "test") {
@@ -185,12 +212,13 @@ export default function Home() {
         preRequestScript,
         testScript,
         responseTemplate,
+        ...(method === "GRPC" ? { grpcConfig } : {}),
       });
       setSaveStatus("saved");
     } catch {
       setSaveStatus("unsaved");
     }
-  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate, grpcConfig]);
 
   // Debounced auto-save
   useEffect(() => {
@@ -203,7 +231,7 @@ export default function Home() {
       saveCurrentRequest();
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate, saveCurrentRequest]);
+  }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate, grpcConfig, saveCurrentRequest]);
 
   // Load request from sidebar
   const handleRequestSelect = (request: SavedRequest) => {
@@ -233,6 +261,12 @@ export default function Home() {
     setTestScript(request.testScript);
     // Load response template if saved
     setResponseTemplate(request.responseTemplate);
+    // Load gRPC config if present
+    if (request.grpcConfig) {
+      setGrpcConfig(request.grpcConfig);
+    } else {
+      setGrpcConfig(createDefaultGrpcConfig());
+    }
     setResponse(null);
     setTestResults([]);
     setScriptError(null);
@@ -255,6 +289,7 @@ export default function Home() {
     setParams([{ key: "", value: "", active: true }]);
     setBody(createDefaultBody());
     setAuth(createDefaultAuth());
+    setGrpcConfig(createDefaultGrpcConfig());
     setPreRequestScript("");
     setTestScript("");
     setResponseTemplate(undefined);
@@ -288,97 +323,183 @@ export default function Home() {
         setVariables(variables);
       }
 
-      // Interpolate URL
-      let finalUrl = interpolate(url, variables);
+      let data;
 
-      // Build URL with query params
-      const activeParams = params.filter((p) => p.active && p.key);
-      if (activeParams.length > 0) {
-        const searchParams = new URLSearchParams();
-        activeParams.forEach((p) => {
-          const key = interpolate(p.key, variables);
-          const value = interpolate(p.value, variables);
-          searchParams.append(key, value);
-        });
-        const separator = finalUrl.includes("?") ? "&" : "?";
-        finalUrl = `${finalUrl}${separator}${searchParams.toString()}`;
-      }
-
-      // Build headers object
-      let headerObj: Record<string, string> = {};
-      headers.filter((h) => h.active && h.key).forEach((h) => {
-        const key = interpolate(h.key, variables);
-        const value = interpolate(h.value, variables);
-        headerObj[key] = value;
-      });
-
-      // Apply authentication
-      const authResult = applyAuth(auth, headerObj, variables, interpolate);
-      headerObj = authResult.headers;
-
-      // Add auth query params if any (for API key in query)
-      if (authResult.queryParams) {
-        const authParams = new URLSearchParams(authResult.queryParams);
-        const separator = finalUrl.includes("?") ? "&" : "?";
-        finalUrl = `${finalUrl}${separator}${authParams.toString()}`;
-      }
-
-      // Prepare request body based on mode
-      let requestBody: unknown = undefined;
-      if (["POST", "PUT", "PATCH"].includes(method) && body.mode !== "none") {
-        // Set content type if not already set
-        const contentType = getContentTypeForBody(body);
-        if (contentType && !headerObj["Content-Type"] && body.mode !== "form-data") {
-          headerObj["Content-Type"] = contentType;
+      if (method === "GRPC") {
+        // Handle gRPC request
+        if (!selectedProtoSchema || !grpcConfig.service || !grpcConfig.method) {
+          setResponse({ error: "Please select a proto schema, service, and method" });
+          setLoading(false);
+          return;
         }
 
-        if (body.mode === "json" || body.mode === "xml" || body.mode === "raw") {
-          const interpolatedBody = interpolate(body.raw, variables);
-          if (body.mode === "json" && interpolatedBody.trim()) {
-            try {
-              requestBody = JSON.parse(interpolatedBody);
-            } catch {
+        // Interpolate server address
+        const serverAddress = interpolate(url, variables);
+
+        // Get the request message from the gRPC editor
+        const message = getGrpcRequestMessage(grpcConfig);
+
+        // Interpolate message values
+        const interpolatedMessage = JSON.parse(
+          interpolate(JSON.stringify(message), variables)
+        );
+
+        // Build metadata object
+        const metadata: Record<string, string> = {};
+        grpcConfig.metadata
+          .filter((m) => m.active && m.key)
+          .forEach((m) => {
+            metadata[m.key.toLowerCase()] = interpolate(m.value, variables);
+          });
+
+        // Apply authentication to metadata
+        if (auth.type === "bearer") {
+          const token = interpolate(auth.bearer.token, variables);
+          const prefix = interpolate(auth.bearer.prefix, variables);
+          metadata["authorization"] = `${prefix} ${token}`.trim();
+        } else if (auth.type === "basic") {
+          const username = interpolate(auth.basic.username, variables);
+          const password = interpolate(auth.basic.password, variables);
+          const encoded = btoa(`${username}:${password}`);
+          metadata["authorization"] = `Basic ${encoded}`;
+        } else if (auth.type === "apikey" && auth.apikey.addTo === "header") {
+          const key = interpolate(auth.apikey.key, variables);
+          const value = interpolate(auth.apikey.value, variables);
+          metadata[key.toLowerCase()] = value;
+        }
+
+        const res = await fetch("/api/grpc-proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target: serverAddress,
+            service: grpcConfig.service,
+            method: grpcConfig.method,
+            protoDefinition: selectedProtoSchema.content,
+            message: interpolatedMessage,
+            metadata,
+            options: {
+              useTls: grpcConfig.useTls,
+              insecure: grpcConfig.insecure,
+              timeout: grpcConfig.timeout,
+            },
+          }),
+        });
+
+        data = await res.json();
+        setResponse(data);
+      } else {
+        // Handle HTTP request
+        // Interpolate URL
+        let finalUrl = interpolate(url, variables);
+
+        // Build URL with query params
+        const activeParams = params.filter((p) => p.active && p.key);
+        if (activeParams.length > 0) {
+          const searchParams = new URLSearchParams();
+          activeParams.forEach((p) => {
+            const key = interpolate(p.key, variables);
+            const value = interpolate(p.value, variables);
+            searchParams.append(key, value);
+          });
+          const separator = finalUrl.includes("?") ? "&" : "?";
+          finalUrl = `${finalUrl}${separator}${searchParams.toString()}`;
+        }
+
+        // Build headers object
+        let headerObj: Record<string, string> = {};
+        headers.filter((h) => h.active && h.key).forEach((h) => {
+          const key = interpolate(h.key, variables);
+          const value = interpolate(h.value, variables);
+          headerObj[key] = value;
+        });
+
+        // Apply authentication
+        const authResult = applyAuth(auth, headerObj, variables, interpolate);
+        headerObj = authResult.headers;
+
+        // Add auth query params if any (for API key in query)
+        if (authResult.queryParams) {
+          const authParams = new URLSearchParams(authResult.queryParams);
+          const separator = finalUrl.includes("?") ? "&" : "?";
+          finalUrl = `${finalUrl}${separator}${authParams.toString()}`;
+        }
+
+        // Prepare request body based on mode
+        let requestBody: unknown = undefined;
+        if (["POST", "PUT", "PATCH"].includes(method) && body.mode !== "none") {
+          // Set content type if not already set
+          const contentType = getContentTypeForBody(body);
+          if (contentType && !headerObj["Content-Type"] && body.mode !== "form-data") {
+            headerObj["Content-Type"] = contentType;
+          }
+
+          if (body.mode === "json" || body.mode === "xml" || body.mode === "raw") {
+            const interpolatedBody = interpolate(body.raw, variables);
+            if (body.mode === "json" && interpolatedBody.trim()) {
+              try {
+                requestBody = JSON.parse(interpolatedBody);
+              } catch {
+                requestBody = interpolatedBody;
+              }
+            } else {
               requestBody = interpolatedBody;
             }
-          } else {
-            requestBody = interpolatedBody;
+          } else if (body.mode === "form-data" || body.mode === "x-www-form-urlencoded") {
+            const formData: Record<string, string> = {};
+            body.formData
+              .filter((f) => f.active && f.key)
+              .forEach((f) => {
+                formData[interpolate(f.key, variables)] = interpolate(f.value, variables);
+              });
+            requestBody = { _formData: formData, _formMode: body.mode };
           }
-        } else if (body.mode === "form-data" || body.mode === "x-www-form-urlencoded") {
-          const formData: Record<string, string> = {};
-          body.formData
-            .filter((f) => f.active && f.key)
-            .forEach((f) => {
-              formData[interpolate(f.key, variables)] = interpolate(f.value, variables);
-            });
-          requestBody = { _formData: formData, _formMode: body.mode };
         }
+
+        const res = await fetch("/api/proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            method,
+            url: finalUrl,
+            headers: headerObj,
+            body: requestBody,
+          }),
+        });
+
+        data = await res.json();
+        setResponse(data);
       }
-
-      const res = await fetch("/api/proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          method,
-          url: finalUrl,
-          headers: headerObj,
-          body: requestBody,
-        }),
-      });
-
-      const data = await res.json();
-      setResponse(data);
 
       // Run test script
       if (testScript.trim() && !("error" in data)) {
-        const context: ScriptContext = {
-          variables,
-          response: {
-            status: data.status,
-            statusText: data.statusText,
-            headers: data.headers,
-            data: data.data,
-          },
-        };
+        let context: ScriptContext;
+
+        if (method === "GRPC") {
+          // For gRPC responses
+          const grpcData = data as GrpcResponse;
+          context = {
+            variables,
+            response: {
+              status: grpcData.status.code,
+              statusText: grpcData.status.details,
+              headers: grpcData.metadata,
+              data: grpcData.data,
+            },
+          };
+        } else {
+          // For HTTP responses
+          context = {
+            variables,
+            response: {
+              status: data.status,
+              statusText: data.statusText,
+              headers: data.headers,
+              data: data.data,
+            },
+          };
+        }
+
         const testResult = runScript(testScript, context);
         if (testResult.error) {
           setScriptError(`Test script error: ${testResult.error}`);
@@ -395,8 +516,12 @@ export default function Home() {
     }
   };
 
-  const isErrorResponse = (r: ApiResponse | ErrorResponse): r is ErrorResponse => {
+  const isErrorResponse = (r: ApiResponse | GrpcResponse | ErrorResponse): r is ErrorResponse => {
     return "error" in r;
+  };
+
+  const isGrpcResponse = (r: ApiResponse | GrpcResponse | ErrorResponse): r is GrpcResponse => {
+    return "status" in r && typeof (r as GrpcResponse).status === "object" && "code" in (r as GrpcResponse).status;
   };
 
   // Parse cookies from response headers
@@ -434,21 +559,38 @@ export default function Home() {
     return JSON.stringify(data, null, 2);
   };
 
-  const responseTabs: { id: ResponseTab; label: string }[] = [
-    { id: "rendered", label: "Rendered" },
-    { id: "body", label: "Body" },
-    { id: "headers", label: "Headers" },
-    { id: "cookies", label: "Cookies" },
-    { id: "raw", label: "Raw" },
-  ];
+  // Response tabs - show different tabs for gRPC vs HTTP
+  const responseTabs: { id: ResponseTab; label: string }[] =
+    response && isGrpcResponse(response)
+      ? [
+          { id: "rendered", label: "Rendered" },
+          { id: "body", label: "Message" },
+          { id: "metadata", label: "Metadata" },
+          { id: "trailers", label: "Trailers" },
+          { id: "raw", label: "Raw" },
+        ]
+      : [
+          { id: "rendered", label: "Rendered" },
+          { id: "body", label: "Body" },
+          { id: "headers", label: "Headers" },
+          { id: "cookies", label: "Cookies" },
+          { id: "raw", label: "Raw" },
+        ];
 
-  const tabs: { id: RequestTab; label: string }[] = [
-    { id: "params", label: "Params" },
-    { id: "headers", label: "Headers" },
-    { id: "auth", label: "Auth" },
-    { id: "body", label: "Body" },
-    { id: "scripts", label: "Scripts" },
-  ];
+  // Request tabs - show gRPC tab when method is GRPC, otherwise show HTTP tabs
+  const tabs: { id: RequestTab; label: string }[] = method === "GRPC"
+    ? [
+        { id: "grpc", label: "gRPC" },
+        { id: "auth", label: "Auth" },
+        { id: "scripts", label: "Scripts" },
+      ]
+    : [
+        { id: "params", label: "Params" },
+        { id: "headers", label: "Headers" },
+        { id: "auth", label: "Auth" },
+        { id: "body", label: "Body" },
+        { id: "scripts", label: "Scripts" },
+      ];
 
   const requestData = {
     method,
@@ -459,6 +601,7 @@ export default function Home() {
     auth,
     preRequestScript,
     testScript,
+    ...(method === "GRPC" ? { grpcConfig } : {}),
   };
 
   return (
@@ -515,14 +658,27 @@ export default function Home() {
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value as HttpMethod)}
-              className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm font-medium"
+              className={`bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm font-medium ${
+                method === "GRPC" ? "text-purple-400" : ""
+              }`}
             >
               <option value="GET">GET</option>
               <option value="POST">POST</option>
               <option value="PUT">PUT</option>
               <option value="DELETE">DELETE</option>
               <option value="PATCH">PATCH</option>
+              <option value="GRPC" className="text-purple-400">gRPC</option>
             </select>
+
+            {method === "GRPC" && (
+              <button
+                onClick={() => setShowProtoManager(true)}
+                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-600/50 rounded px-3 py-2 text-sm font-medium transition-colors"
+                title="Manage Proto Schemas"
+              >
+                Proto
+              </button>
+            )}
 
             <div className="flex-1 flex flex-col">
               <VariableInput
@@ -627,6 +783,15 @@ export default function Home() {
 
               {activeTab === "body" && (
                 <BodyEditor body={body} onChange={setBody} />
+              )}
+
+              {activeTab === "grpc" && (
+                <GrpcRequestEditor
+                  config={grpcConfig}
+                  onChange={setGrpcConfig}
+                  serverAddress={url}
+                  onServerAddressChange={setUrl}
+                />
               )}
 
               {activeTab === "scripts" && (
@@ -756,23 +921,51 @@ export default function Home() {
                 <>
                   {/* Response Status Bar */}
                   <div className="flex items-center gap-4 px-4 py-3 border-b border-zinc-800 text-sm">
-                    <span
-                      className={`font-medium ${
-                        response.status >= 200 && response.status < 300
-                          ? "text-green-400"
-                          : response.status >= 400
-                          ? "text-red-400"
-                          : "text-yellow-400"
-                      }`}
-                    >
-                      {response.status} {response.statusText}
-                    </span>
-                    <span className="text-zinc-500">{response.time}ms</span>
-                    <span className="text-zinc-500">
-                      {response.size > 1024
-                        ? `${(response.size / 1024).toFixed(2)} KB`
-                        : `${response.size} B`}
-                    </span>
+                    {isGrpcResponse(response) ? (
+                      // gRPC status display
+                      <>
+                        <span
+                          className={`font-medium ${
+                            response.status.code === 0
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {response.status.code === 0 ? "OK" : `Error ${response.status.code}`}
+                        </span>
+                        <span className="text-zinc-400">{response.status.details}</span>
+                        <span className="text-zinc-500">{response.time}ms</span>
+                        <span className="text-zinc-500">
+                          {response.size > 1024
+                            ? `${(response.size / 1024).toFixed(2)} KB`
+                            : `${response.size} B`}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-purple-600/30 text-purple-400 rounded text-xs">
+                          gRPC
+                        </span>
+                      </>
+                    ) : (
+                      // HTTP status display
+                      <>
+                        <span
+                          className={`font-medium ${
+                            (response as ApiResponse).status >= 200 && (response as ApiResponse).status < 300
+                              ? "text-green-400"
+                              : (response as ApiResponse).status >= 400
+                              ? "text-red-400"
+                              : "text-yellow-400"
+                          }`}
+                        >
+                          {(response as ApiResponse).status} {(response as ApiResponse).statusText}
+                        </span>
+                        <span className="text-zinc-500">{(response as ApiResponse).time}ms</span>
+                        <span className="text-zinc-500">
+                          {(response as ApiResponse).size > 1024
+                            ? `${((response as ApiResponse).size / 1024).toFixed(2)} KB`
+                            : `${(response as ApiResponse).size} B`}
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   {/* Response Tabs */}
@@ -788,11 +981,13 @@ export default function Home() {
                         }`}
                       >
                         {tab.label}
-                        {tab.id === "cookies" && (() => {
-                          const cookies = parseCookies(response.headers);
+                        {tab.id === "cookies" && !isGrpcResponse(response) && (() => {
+                          const cookies = parseCookies((response as ApiResponse).headers);
                           return cookies.length > 0 ? ` (${cookies.length})` : "";
                         })()}
-                        {tab.id === "headers" && ` (${Object.keys(response.headers).length})`}
+                        {tab.id === "headers" && !isGrpcResponse(response) && ` (${Object.keys((response as ApiResponse).headers).length})`}
+                        {tab.id === "metadata" && isGrpcResponse(response) && ` (${Object.keys(response.metadata).length})`}
+                        {tab.id === "trailers" && isGrpcResponse(response) && ` (${Object.keys(response.trailers).length})`}
                       </button>
                     ))}
                   </div>
@@ -824,9 +1019,9 @@ export default function Home() {
                       />
                     )}
 
-                    {responseTab === "headers" && (
+                    {responseTab === "headers" && !isGrpcResponse(response) && (
                       <div className="p-4 overflow-auto h-full">
-                        {Object.keys(response.headers).length === 0 ? (
+                        {Object.keys((response as ApiResponse).headers).length === 0 ? (
                           <div className="text-zinc-500 text-sm">No headers in response</div>
                         ) : (
                           <table className="w-full text-sm">
@@ -837,7 +1032,7 @@ export default function Home() {
                               </tr>
                             </thead>
                             <tbody>
-                              {Object.entries(response.headers).map(([key, value]) => (
+                              {Object.entries((response as ApiResponse).headers).map(([key, value]) => (
                                 <tr key={key} className="border-b border-zinc-800">
                                   <td className="py-2 pr-4 text-blue-400 font-mono">{key}</td>
                                   <td className="py-2 text-zinc-300 font-mono break-all">{value}</td>
@@ -849,10 +1044,10 @@ export default function Home() {
                       </div>
                     )}
 
-                    {responseTab === "cookies" && (
+                    {responseTab === "cookies" && !isGrpcResponse(response) && (
                       <div className="p-4 overflow-auto h-full">
                         {(() => {
-                          const cookies = parseCookies(response.headers);
+                          const cookies = parseCookies((response as ApiResponse).headers);
                           if (cookies.length === 0) {
                             return <div className="text-zinc-500 text-sm">No cookies in response</div>;
                           }
@@ -877,6 +1072,56 @@ export default function Home() {
                             </table>
                           );
                         })()}
+                      </div>
+                    )}
+
+                    {responseTab === "metadata" && isGrpcResponse(response) && (
+                      <div className="p-4 overflow-auto h-full">
+                        {Object.keys(response.metadata).length === 0 ? (
+                          <div className="text-zinc-500 text-sm">No metadata in response</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-zinc-700">
+                                <th className="text-left py-2 pr-4 text-zinc-400 font-medium">Key</th>
+                                <th className="text-left py-2 text-zinc-400 font-medium">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(response.metadata).map(([key, value]) => (
+                                <tr key={key} className="border-b border-zinc-800">
+                                  <td className="py-2 pr-4 text-purple-400 font-mono">{key}</td>
+                                  <td className="py-2 text-zinc-300 font-mono break-all">{value}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+
+                    {responseTab === "trailers" && isGrpcResponse(response) && (
+                      <div className="p-4 overflow-auto h-full">
+                        {Object.keys(response.trailers).length === 0 ? (
+                          <div className="text-zinc-500 text-sm">No trailers in response</div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-zinc-700">
+                                <th className="text-left py-2 pr-4 text-zinc-400 font-medium">Key</th>
+                                <th className="text-left py-2 text-zinc-400 font-medium">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(response.trailers).map(([key, value]) => (
+                                <tr key={key} className="border-b border-zinc-800">
+                                  <td className="py-2 pr-4 text-purple-400 font-mono">{key}</td>
+                                  <td className="py-2 text-zinc-300 font-mono break-all">{value}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
                     )}
 
@@ -939,6 +1184,10 @@ export default function Home() {
       <ImportExportModal
         isOpen={showImportExport}
         onClose={() => setShowImportExport(false)}
+      />
+      <ProtoSchemaManager
+        isOpen={showProtoManager}
+        onClose={() => setShowProtoManager(false)}
       />
     </div>
     </VariableContextProvider>
