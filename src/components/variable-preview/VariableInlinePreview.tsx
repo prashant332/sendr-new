@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useVariableContextSafe } from "./VariableContextProvider";
 import { findAllVariables } from "./useVariableDetection";
+import { interpolate } from "@/lib/interpolate";
 
 interface VariableInlinePreviewProps {
   value: string;
@@ -48,13 +49,15 @@ export function VariableInlinePreview({
       }
 
       // Add the resolved variable value
-      const resolvedValue = variableContext.getValue(variable.name);
+      const rawValue = variableContext.getValue(variable.name);
       const isDefined = variableContext.isDefined(variable.name);
 
       if (isDefined) {
+        // Recursively resolve nested variables in the value
+        const resolvedValue = interpolate(rawValue ?? "", variableContext.variables);
         parts.push({
           type: "resolved",
-          content: resolvedValue ?? "",
+          content: resolvedValue,
           variableName: variable.name,
         });
       } else {

@@ -77,6 +77,7 @@ export default function Home() {
 
   // Active request tracking
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [activeRequestName, setActiveRequestName] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved" | null>(null);
 
   // Get store methods
@@ -207,6 +208,7 @@ export default function Home() {
   // Load request from sidebar
   const handleRequestSelect = (request: SavedRequest) => {
     setActiveRequestId(request.id);
+    setActiveRequestName(request.name);
     setMethod(request.method);
     setUrl(request.url);
     setHeaders(request.headers);
@@ -246,6 +248,7 @@ export default function Home() {
   // Clear active request (new request)
   const handleNewRequest = () => {
     setActiveRequestId(null);
+    setActiveRequestName(null);
     setMethod("GET");
     setUrl("");
     setHeaders([{ key: "", value: "", active: true }]);
@@ -478,6 +481,14 @@ export default function Home() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">Sendr</h1>
+              {activeRequestName && (
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-600">/</span>
+                  <span className="text-lg text-zinc-300 max-w-md truncate" title={activeRequestName}>
+                    {activeRequestName}
+                  </span>
+                </div>
+              )}
               {saveStatus && (
                 <span className="text-xs text-zinc-500">
                   {saveStatus === "saving"

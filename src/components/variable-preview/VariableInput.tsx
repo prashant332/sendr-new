@@ -21,6 +21,7 @@ import {
   AutocompleteContext,
   VariableMatch,
 } from "./useVariableDetection";
+import { interpolate } from "@/lib/interpolate";
 
 interface VariableInputProps {
   value: string;
@@ -72,10 +73,15 @@ export function VariableInput({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get filtered variables based on search query (memoized)
+  // Values are recursively resolved to show the final interpolated value
   const filteredVariables = useMemo(() => {
-    return variableContext
-      ? variableContext.getFilteredVariables(autocompleteContext.searchQuery)
-      : [];
+    if (!variableContext) return [];
+    const vars = variableContext.getFilteredVariables(autocompleteContext.searchQuery);
+    // Resolve nested variables in values for display
+    return vars.map((v) => ({
+      name: v.name,
+      value: interpolate(v.value, variableContext.variables),
+    }));
   }, [variableContext, autocompleteContext.searchQuery]);
 
   // Update autocomplete context when value or cursor changes
@@ -422,7 +428,14 @@ export function VariableInput({
       {isHoverPreviewVisible && hoveredVariable && (
         <VariableHoverPreview
           variableName={hoveredVariable.name}
-          value={variableContext?.getValue(hoveredVariable.name)}
+          value={
+            variableContext
+              ? interpolate(
+                  variableContext.getValue(hoveredVariable.name),
+                  variableContext.variables
+                )
+              : undefined
+          }
           isDefined={variableContext?.isDefined(hoveredVariable.name) ?? false}
           position={hoverPosition}
           onClose={handleHoverPreviewClose}

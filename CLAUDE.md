@@ -409,6 +409,8 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 | 5 | prefix Bearer is added even when configuring Auth as API-Key header. It should not add Bearer for API key and also should not add any prefix if the prefix is left empty while configuring Bearer token | ✅ Fixed - Empty prefix now correctly handled |
 | 6 | The area provided to set up the request body is too small in height. It should be responsive and adjust height with available screen space and also add scroll if height going beyond visible space to accommodate large payload bodies | ✅ Fixed - Responsive height with min/max bounds |
 | 7 | The environmental variable placeholder is not replaced in the request URL. If I configure url=https://example.com/{{tenant}}/get and tenant as another variable, it will not replace it in url. It does in other places. | ✅ Fixed - Enhanced interpolate function |
+| 8 | The environment variable interpolation is not happening within another variable. E.g. If I want to use envType variable within the baseURL type. It doesn't replace it. This can help reduce the number of variables if supported. | ✅ Fixed - Recursive interpolation with max depth |
+| 9 | The request name is not visible on the main panel after selecting the request. The left panel has it but it doesn't render the full name for long titles. It should be visible somewhere to make the request selected. | ✅ Fixed - Request name shown in header with tooltip |
 
 ### Bug #5-7 Fix Details
 
@@ -429,6 +431,22 @@ Auto-generates a representable UI for JSON responses based on data structure ana
 - Added whitespace tolerance inside braces: `{{ variable }}`
 - Added null/undefined input handling
 - Created shared `src/lib/uuid.ts` for browser-compatible UUID generation
+
+### Bug #8-9 Fix Details
+
+**Bug #8 (Nested Variable Interpolation):**
+- Modified `interpolate()` function in `src/lib/interpolate.ts` to support recursive resolution
+- Variables containing other variables are now resolved iteratively
+- Example: `baseURL = "https://{{envType}}.example.com"` + `envType = "prod"` → `"https://prod.example.com"`
+- Added `maxDepth` parameter (default: 10) to prevent infinite loops from circular references
+- Recursion stops when no more `{{}}` patterns are found or max depth is reached
+
+**Bug #9 (Request Name Display):**
+- Added `activeRequestName` state to track selected request name
+- Request name displayed in header: "Sendr / Request Name"
+- Name is truncated with ellipsis for long names (max-w-md)
+- Full name shown in tooltip on hover
+- Name cleared when creating a new request
 
 ### Bug #4 Fix Details (Environment Creation in Docker)
 
