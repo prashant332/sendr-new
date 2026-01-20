@@ -8,6 +8,7 @@ interface VariableHoverPreviewProps {
   isDefined: boolean;
   position: { top: number; left: number };
   onClose: () => void;
+  onMouseEnter: () => void;
   onCopyValue: () => void;
   onEditVariable: () => void;
   onCreateVariable?: () => void;
@@ -19,6 +20,7 @@ export function VariableHoverPreview({
   isDefined,
   position,
   onClose,
+  onMouseEnter,
   onCopyValue,
   onEditVariable,
   onCreateVariable,
@@ -100,6 +102,7 @@ export function VariableHoverPreview({
         minWidth: "200px",
         maxWidth: "350px",
       }}
+      onMouseEnter={onMouseEnter}
       onMouseLeave={onClose}
     >
       {/* Header */}

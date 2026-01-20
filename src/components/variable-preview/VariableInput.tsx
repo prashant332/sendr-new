@@ -273,10 +273,22 @@ export function VariableInput({
     hoverTimeoutRef.current = setTimeout(() => {
       setIsHoverPreviewVisible(false);
       setHoveredVariable(null);
-    }, 100);
+    }, 300); // Increased delay to allow moving to tooltip
   }, []);
 
+  // Called when mouse enters the tooltip - cancel the close timeout
+  const handleTooltipMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Called when mouse leaves the tooltip - close it
   const handleHoverPreviewClose = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
     setIsHoverPreviewVisible(false);
     setHoveredVariable(null);
   }, []);
@@ -414,6 +426,7 @@ export function VariableInput({
           isDefined={variableContext?.isDefined(hoveredVariable.name) ?? false}
           position={hoverPosition}
           onClose={handleHoverPreviewClose}
+          onMouseEnter={handleTooltipMouseEnter}
           onCopyValue={handleCopyValue}
           onEditVariable={handleEditVariable}
           onCreateVariable={onOpenEnvManager}
