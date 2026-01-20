@@ -3474,8 +3474,14 @@ Hover over any `{{variable}}` in the URL bar to see its current value. Click "Co
 - [ ] Performance optimization (debounce, memoization)
 - [ ] Add user preference persistence
 
-#### Phase 30: Create variable from Request Body
-- [ ] Add option to create a variable from a value within Request body
+#### Phase 30: Create Variable from Selection ✅
+- [x] Add Monaco context menu action "Create Variable from Selection"
+- [x] Create modal for entering variable name with preview
+- [x] Save variable to active environment
+- [x] Replace selected text with `{{variableName}}` syntax
+- [x] Show warning if no environment is active
+- [x] Support in Body editor (JSON, XML, raw modes)
+- [x] Keyboard shortcut: Ctrl/Cmd + Shift + V
 
 ### 12.11 Integration Points
 

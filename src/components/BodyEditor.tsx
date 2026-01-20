@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
+import { CreateVariableModal } from "@/components/CreateVariableModal";
 import { BodyMode, RequestBody } from "@/lib/db";
 import { useEnvironmentStore } from "@/store/environmentStore";
 import { setupMonacoVariableSupport } from "@/lib/monaco";
@@ -24,6 +25,16 @@ const BODY_MODES: { value: BodyMode; label: string }[] = [
 
 export function BodyEditor({ body, onChange }: BodyEditorProps) {
   const cleanupRef = useRef<(() => void) | null>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const [showCreateVariableModal, setShowCreateVariableModal] = useState(false);
+  const [selectedText, setSelectedText] = useState("");
+  const [selectionRange, setSelectionRange] = useState<{
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null>(null);
+
   const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
   const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
 
@@ -64,9 +75,35 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
     [getActiveVariables]
   );
 
+  // Handle variable created - replace selection if needed
+  const handleVariableCreated = useCallback(
+    (variableName: string, replaceSelection: boolean) => {
+      if (replaceSelection && editorRef.current && selectionRange) {
+        const replacement = `{{${variableName}}}`;
+        editorRef.current.executeEdits("create-variable", [
+          {
+            range: selectionRange,
+            text: replacement,
+            forceMoveMarkers: true,
+          },
+        ]);
+        // Update the body state with the new value
+        const newValue = editorRef.current.getValue();
+        onChange({ ...body, raw: newValue });
+      }
+      setShowCreateVariableModal(false);
+      setSelectedText("");
+      setSelectionRange(null);
+    },
+    [selectionRange, onChange, body]
+  );
+
   // Handle Monaco editor mount
   const handleEditorMount: OnMount = useCallback(
     (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      // Store editor reference
+      editorRef.current = editorInstance;
+
       // Clean up previous instance if any
       if (cleanupRef.current) {
         cleanupRef.current();
@@ -79,6 +116,37 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
         getVariables,
         isVariableDefined
       );
+
+      // Add context menu action for creating variables
+      editorInstance.addAction({
+        id: "create-variable-from-selection",
+        label: "Create Variable from Selection",
+        keybindings: [
+          monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyV,
+        ],
+        contextMenuGroupId: "1_modification",
+        contextMenuOrder: 1.5,
+        precondition: "editorHasSelection",
+        run: () => {
+          const selection = editorInstance.getSelection();
+          if (!selection || selection.isEmpty()) return;
+
+          const model = editorInstance.getModel();
+          if (!model) return;
+
+          const text = model.getValueInRange(selection);
+          if (!text.trim()) return;
+
+          setSelectedText(text);
+          setSelectionRange({
+            startLineNumber: selection.startLineNumber,
+            startColumn: selection.startColumn,
+            endLineNumber: selection.endLineNumber,
+            endColumn: selection.endColumn,
+          });
+          setShowCreateVariableModal(true);
+        },
+      });
     },
     [getVariables, isVariableDefined]
   );
@@ -152,6 +220,18 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
           </div>
         </div>
       )}
+
+      {/* Create Variable Modal */}
+      <CreateVariableModal
+        isOpen={showCreateVariableModal}
+        onClose={() => {
+          setShowCreateVariableModal(false);
+          setSelectedText("");
+          setSelectionRange(null);
+        }}
+        selectedValue={selectedText}
+        onVariableCreated={handleVariableCreated}
+      />
     </div>
   );
 }
