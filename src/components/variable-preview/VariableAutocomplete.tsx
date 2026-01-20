@@ -25,7 +25,6 @@ export function VariableAutocomplete({
   selectedIndex,
   onSelect,
   onClose,
-  onNavigate: _onNavigate,
   position,
   maxHeight = 250,
   activeEnvironmentName,
