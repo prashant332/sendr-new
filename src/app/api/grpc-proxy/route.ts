@@ -83,13 +83,10 @@ export async function POST(request: NextRequest) {
 
     const { useTls = false, insecure = false, timeout = 30000 } = options;
 
-    // Create a temporary directory-like structure for proto loading
-    // proto-loader needs to resolve imports, so we provide a custom resolver
-    const allProtos: Record<string, string> = {
-      ...WELL_KNOWN_PROTOS,
-      ...additionalProtos,
-      "main.proto": protoDefinition,
-    };
+    // Note: additionalProtos and WELL_KNOWN_PROTOS are available for future
+    // custom import resolution when proto-loader supports it
+    void additionalProtos;
+    void WELL_KNOWN_PROTOS;
 
     // Load the proto definition
     const packageDefinition = await protoLoader.load("main.proto", {

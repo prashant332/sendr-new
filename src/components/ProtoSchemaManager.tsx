@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import Editor, { type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import {
   useProtoSchemas,
@@ -13,7 +13,6 @@ import { useCollections } from "@/hooks/useCollections";
 import type { ProtoSchema, ParsedService } from "@/lib/db";
 import {
   parseProtoContent,
-  validateProtoSyntax,
   getMethodType,
 } from "@/lib/grpc/protoParser";
 import { isWellKnownType } from "@/lib/grpc/wellKnownProtos";
@@ -111,7 +110,7 @@ export function ProtoSchemaManager({
 
   // Handle editor mount
   const handleEditorMount: OnMount = useCallback(
-    (editorInstance: editor.IStandaloneCodeEditor, _monaco: Monaco) => {
+    (editorInstance: editor.IStandaloneCodeEditor) => {
       editorRef.current = editorInstance;
     },
     []

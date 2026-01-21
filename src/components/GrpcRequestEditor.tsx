@@ -6,7 +6,7 @@ import type { editor } from "monaco-editor";
 import { useProtoSchemas, useProtoSchema } from "@/hooks/useProtoSchemas";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
-import type { GrpcConfig, GrpcMetadataEntry, ParsedService, ParsedMethod } from "@/lib/db";
+import type { GrpcConfig, GrpcMetadataEntry } from "@/lib/db";
 import { parseProtoContent, generateSampleMessage, getMethodType } from "@/lib/grpc/protoParser";
 
 interface GrpcRequestEditorProps {
@@ -14,6 +14,8 @@ interface GrpcRequestEditorProps {
   onChange: (config: GrpcConfig) => void;
   serverAddress: string;
   onServerAddressChange: (address: string) => void;
+  requestMessage: string;
+  onRequestMessageChange: (message: string) => void;
 }
 
 // Default gRPC config
@@ -34,47 +36,48 @@ export function GrpcRequestEditor({
   onChange,
   serverAddress,
   onServerAddressChange,
+  requestMessage,
+  onRequestMessageChange,
 }: GrpcRequestEditorProps) {
   const schemas = useProtoSchemas();
   const selectedSchema = useProtoSchema(config?.protoSchemaId || null);
 
   const [showProtoManager, setShowProtoManager] = useState(false);
-  const [parsedServices, setParsedServices] = useState<ParsedService[]>([]);
-  const [requestMessage, setRequestMessage] = useState("{\n  \n}");
   const [activeSubTab, setActiveSubTab] = useState<"message" | "metadata" | "options">("message");
 
   const editorRef = useState<editor.IStandaloneCodeEditor | null>(null);
 
-  // Parse schema when selected
-  useEffect(() => {
+  // Parse schema - derived state using useMemo
+  const parsedServices = useMemo(() => {
     if (selectedSchema) {
       const result = parseProtoContent(selectedSchema.content);
-      setParsedServices(result.services);
+      return result.services;
+    }
+    return [];
+  }, [selectedSchema]);
 
-      // Auto-select first service and method if none selected
-      if (result.services.length > 0 && !config?.service) {
-        const firstService = result.services[0];
-        const firstMethod = firstService.methods[0];
-        onChange({
-          ...createDefaultGrpcConfig(),
-          ...config,
-          protoSchemaId: selectedSchema.id,
-          service: firstService.fullName,
-          method: firstMethod?.name || "",
-        });
+  // Auto-select first service and method when schema changes
+  useEffect(() => {
+    if (selectedSchema && parsedServices.length > 0 && !config?.service) {
+      const firstService = parsedServices[0];
+      const firstMethod = firstService.methods[0];
+      onChange({
+        ...createDefaultGrpcConfig(),
+        ...config,
+        protoSchemaId: selectedSchema.id,
+        service: firstService.fullName,
+        method: firstMethod?.name || "",
+      });
 
-        // Generate sample message for the method
-        if (firstMethod) {
-          const sample = generateSampleMessage(selectedSchema.content, firstMethod.inputType);
-          if (sample) {
-            setRequestMessage(JSON.stringify(sample, null, 2));
-          }
+      // Generate sample message for the method
+      if (firstMethod) {
+        const sample = generateSampleMessage(selectedSchema.content, firstMethod.inputType);
+        if (sample) {
+          onRequestMessageChange(JSON.stringify(sample, null, 2));
         }
       }
-    } else {
-      setParsedServices([]);
     }
-  }, [selectedSchema, config, onChange]);
+  }, [selectedSchema, parsedServices, config, onChange, onRequestMessageChange]);
 
   // Get current service object
   const currentService = useMemo(() => {
@@ -118,11 +121,11 @@ export function GrpcRequestEditor({
       if (firstMethod && selectedSchema) {
         const sample = generateSampleMessage(selectedSchema.content, firstMethod.inputType);
         if (sample) {
-          setRequestMessage(JSON.stringify(sample, null, 2));
+          onRequestMessageChange(JSON.stringify(sample, null, 2));
         }
       }
     },
-    [config, onChange, parsedServices, selectedSchema]
+    [config, onChange, parsedServices, selectedSchema, onRequestMessageChange]
   );
 
   // Handle method change
@@ -139,11 +142,11 @@ export function GrpcRequestEditor({
       if (method && selectedSchema) {
         const sample = generateSampleMessage(selectedSchema.content, method.inputType);
         if (sample) {
-          setRequestMessage(JSON.stringify(sample, null, 2));
+          onRequestMessageChange(JSON.stringify(sample, null, 2));
         }
       }
     },
-    [config, onChange, currentService, selectedSchema]
+    [config, onChange, currentService, selectedSchema, onRequestMessageChange]
   );
 
   // Handle metadata change
@@ -181,22 +184,6 @@ export function GrpcRequestEditor({
     },
     [editorRef]
   );
-
-  // Get request message (for parent to use)
-  const getRequestMessage = useCallback(() => {
-    try {
-      return JSON.parse(requestMessage);
-    } catch {
-      return {};
-    }
-  }, [requestMessage]);
-
-  // Expose getRequestMessage through a ref or callback
-  useEffect(() => {
-    // Store the getter on the config for the parent to access
-    // This is a bit of a hack but avoids lifting state up further
-    (config as GrpcConfig & { _getMessage?: () => Record<string, unknown> })._getMessage = getRequestMessage;
-  }, [config, getRequestMessage]);
 
   return (
     <div className="space-y-4">
@@ -328,7 +315,7 @@ export function GrpcRequestEditor({
                   language="json"
                   theme="vs-dark"
                   value={requestMessage}
-                  onChange={(value) => setRequestMessage(value || "{}")}
+                  onChange={(value) => onRequestMessageChange(value || "{}")}
                   onMount={handleEditorMount}
                   options={{
                     minimap: { enabled: false },
@@ -435,8 +422,3 @@ export function GrpcRequestEditor({
   );
 }
 
-// Export a helper to get the request message from config
-export function getGrpcRequestMessage(config: GrpcConfig | undefined): Record<string, unknown> {
-  const getter = (config as GrpcConfig & { _getMessage?: () => Record<string, unknown> })?._getMessage;
-  return getter ? getter() : {};
-}

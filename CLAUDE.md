@@ -24,9 +24,10 @@ This file serves as the single source of truth for product requirements, technic
 | Docker & docker-compose | ✅ Implemented | §10.2 |
 | npm/npx CLI | ✅ Implemented | §10.3 |
 | CI/CD Workflows | ✅ Implemented | §10.2.5 |
-| **gRPC/Protocol Buffers (Phases 11-18)** | ⚠️ **~70% Complete** | §9 |
+| **gRPC/Protocol Buffers (Phases 11-18)** | ⚠️ **~85% Complete** | §9 |
 | Proto Schema Management | ✅ Implemented | §9.4 |
 | gRPC Proxy & UI (Unary) | ✅ Implemented | §9.5 |
+| Workflow Runner Integration | ✅ Implemented | §9.6 |
 | Streaming Support | ❌ Future | §9.6 |
 | **Variable Live Preview (Phases 24-29)** | ❌ **Not Implemented** | §12 |
 | Autocomplete & Hover Preview | ❌ Future | §12.4 |
@@ -1381,7 +1382,7 @@ pm.test("gRPC status is OK", () => {
 - [x] Integrate Response Visualizer for gRPC responses
 - [ ] Add raw binary view (hex dump) (future)
 - [x] Support gRPC response in test scripts (`pm.response.json()`)
-- [ ] Add `pm.response.metadata()` and `pm.response.trailers()` to scripting API (future)
+- [x] Add `pm.response.metadata()` and `pm.response.trailers()` to scripting API
 
 #### Phase 15: gRPC Collections Integration ✅
 - [x] Extend SavedRequest model with grpcConfig (including metadata array)
@@ -1394,11 +1395,11 @@ pm.test("gRPC status is OK", () => {
 - [ ] Support bulk-adding multiple service methods as separate requests (future)
 - [ ] Add `defaultProtoSchemaIds` to Collection model for dropdown ordering (future)
 
-#### Phase 16: gRPC Workflow Runner
-- [ ] Extend workflowRunner to handle gRPC requests
-- [ ] Add gRPC status code to result tracking
-- [ ] Support variable extraction from gRPC responses
-- [ ] Display gRPC-specific results in runner UI
+#### Phase 16: gRPC Workflow Runner ✅
+- [x] Extend workflowRunner to handle gRPC requests
+- [x] Add gRPC status code to result tracking
+- [x] Support variable extraction from gRPC responses
+- [x] Pass gRPC metadata/trailers to test scripts
 
 #### Phase 17: Server Streaming Support
 - [ ] Extend grpc-proxy for server streaming

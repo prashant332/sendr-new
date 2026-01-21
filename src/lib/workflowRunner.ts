@@ -1,4 +1,4 @@
-import { db, SavedRequest } from "@/lib/db";
+import { db, SavedRequest, GrpcConfig } from "@/lib/db";
 import { interpolate } from "@/lib/interpolate";
 import { runScript, TestResult } from "@/lib/scriptRunner";
 
@@ -13,6 +13,11 @@ export interface RequestResult {
   testResults: TestResult[];
   logs: string[];
   error?: string;
+  // gRPC-specific fields
+  grpcStatus?: {
+    code: number;
+    details: string;
+  };
 }
 
 export interface RunSummary {
@@ -106,6 +111,7 @@ export async function runWorkflow(
       testResults: result.testResults,
       logs: result.logs,
       error: result.error,
+      grpcStatus: result.grpcStatus,
     };
 
     // Update summary
@@ -148,6 +154,13 @@ interface ExecuteResult {
   logs: string[];
   updatedVariables: Record<string, string>;
   error?: string;
+  // gRPC-specific fields
+  grpcStatus?: {
+    code: number;
+    details: string;
+  };
+  grpcMetadata?: Record<string, string>;
+  grpcTrailers?: Record<string, string>;
 }
 
 async function executeRequest(
@@ -178,6 +191,11 @@ async function executeRequest(
         error: `Pre-request script error: ${preResult.error}`,
       };
     }
+  }
+
+  // Handle gRPC requests separately
+  if (request.method === "GRPC" && request.grpcConfig) {
+    return executeGrpcRequest(request, currentVariables, logs);
   }
 
   // Interpolate URL
@@ -359,5 +377,184 @@ async function executeRequest(
     logs,
     updatedVariables: currentVariables,
     error,
+  };
+}
+
+/**
+ * Execute a gRPC request via the grpc-proxy endpoint
+ */
+async function executeGrpcRequest(
+  request: SavedRequest,
+  variables: Record<string, string>,
+  logs: string[]
+): Promise<ExecuteResult> {
+  let currentVariables = { ...variables };
+  let testResults: TestResult[] = [];
+
+  const grpcConfig = request.grpcConfig as GrpcConfig;
+  const interpolatedUrl = interpolate(request.url, currentVariables);
+
+  // Get proto schema from database
+  const protoSchema = await db.protoSchemas.get(grpcConfig.protoSchemaId);
+  if (!protoSchema) {
+    return {
+      interpolatedUrl,
+      statusCode: 0,
+      statusText: "Proto Schema Not Found",
+      duration: 0,
+      testResults: [],
+      logs: [...logs, `Proto schema not found: ${grpcConfig.protoSchemaId}`],
+      updatedVariables: currentVariables,
+      error: `Proto schema not found: ${grpcConfig.protoSchemaId}`,
+    };
+  }
+
+  // Build gRPC metadata from config + auth
+  const metadata: Record<string, string> = {};
+
+  // Add metadata from grpcConfig
+  if (grpcConfig.metadata) {
+    for (const entry of grpcConfig.metadata) {
+      if (entry.active && entry.key) {
+        metadata[entry.key.toLowerCase()] = interpolate(entry.value, currentVariables);
+      }
+    }
+  }
+
+  // Apply authentication to metadata
+  if (request.auth && request.auth.type !== "none") {
+    const auth = request.auth;
+    if (auth.type === "bearer") {
+      const token = interpolate(auth.bearer.token, currentVariables);
+      const headerKey = interpolate(auth.bearer.headerKey || "authorization", currentVariables).toLowerCase();
+      const rawPrefix = auth.bearer.prefix !== undefined ? auth.bearer.prefix : "Bearer";
+      const prefix = interpolate(rawPrefix, currentVariables);
+      if (token) {
+        metadata[headerKey] = prefix ? `${prefix} ${token}` : token;
+      }
+    } else if (auth.type === "basic") {
+      const username = interpolate(auth.basic.username, currentVariables);
+      const password = interpolate(auth.basic.password, currentVariables);
+      const headerKey = interpolate(auth.basic.headerKey || "authorization", currentVariables).toLowerCase();
+      if (username || password) {
+        const encoded = btoa(`${username}:${password}`);
+        metadata[headerKey] = `Basic ${encoded}`;
+      }
+    } else if (auth.type === "apikey") {
+      const key = interpolate(auth.apikey.key, currentVariables).toLowerCase();
+      const value = interpolate(auth.apikey.value, currentVariables);
+      if (key && value && auth.apikey.addTo === "header") {
+        metadata[key] = value;
+      }
+    }
+  }
+
+  // Get request message from body
+  let message: Record<string, unknown> = {};
+  const body = request.body as unknown;
+  if (body && typeof body === "object" && "mode" in body) {
+    const typedBody = body as { mode: string; raw: string };
+    if (typedBody.mode === "json" && typedBody.raw?.trim()) {
+      try {
+        const interpolatedBody = interpolate(typedBody.raw, currentVariables);
+        message = JSON.parse(interpolatedBody);
+      } catch {
+        // If JSON parsing fails, use empty object
+        logs.push("Warning: Failed to parse request body as JSON");
+      }
+    }
+  }
+
+  // Make gRPC request
+  const startTime = Date.now();
+  let statusCode = 0;
+  let statusText = "";
+  let responseData: unknown = null;
+  let responseMetadata: Record<string, string> = {};
+  let responseTrailers: Record<string, string> = {};
+  let grpcStatus: { code: number; details: string } | undefined;
+  let error: string | undefined;
+
+  try {
+    const response = await fetch("/api/grpc-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: interpolatedUrl,
+        service: grpcConfig.service,
+        method: grpcConfig.method,
+        protoDefinition: protoSchema.content,
+        message,
+        metadata,
+        options: {
+          useTls: grpcConfig.useTls,
+          insecure: grpcConfig.insecure,
+          timeout: grpcConfig.timeout || 30000,
+        },
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.error) {
+      // Handle proxy-level errors
+      error = result.error;
+      statusText = result.error;
+    } else {
+      responseData = result.data;
+      responseMetadata = result.metadata || {};
+      responseTrailers = result.trailers || {};
+      grpcStatus = result.status;
+
+      // Map gRPC status to HTTP-like status for consistency
+      statusCode = grpcStatus?.code === 0 ? 200 : 500;
+      statusText = grpcStatus?.details || "Unknown";
+
+      if (grpcStatus?.code !== 0) {
+        error = `gRPC Error: ${grpcStatus?.details || "Unknown error"} (code: ${grpcStatus?.code})`;
+      }
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    statusText = "Network Error";
+  }
+
+  const duration = Date.now() - startTime;
+
+  // Run test script with gRPC-specific context
+  if (request.testScript?.trim() && !error) {
+    const testResult = runScript(request.testScript, {
+      variables: currentVariables,
+      response: {
+        status: statusCode,
+        statusText,
+        headers: {}, // gRPC doesn't have HTTP headers
+        data: responseData,
+        grpcMetadata: responseMetadata,
+        grpcTrailers: responseTrailers,
+        grpcStatus,
+      },
+    });
+    currentVariables = { ...currentVariables, ...testResult.updatedVariables };
+    testResults = testResult.testResults;
+    logs.push(...testResult.logs);
+
+    if (testResult.error) {
+      logs.push(`Test script error: ${testResult.error}`);
+    }
+  }
+
+  return {
+    interpolatedUrl,
+    statusCode,
+    statusText,
+    duration,
+    testResults,
+    logs,
+    updatedVariables: currentVariables,
+    error,
+    grpcStatus,
+    grpcMetadata: responseMetadata,
+    grpcTrailers: responseTrailers,
   };
 }

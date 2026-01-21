@@ -18,7 +18,7 @@ import { ImportExportModal } from "@/components/ImportExportModal";
 import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
 import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
-import { GrpcRequestEditor, createDefaultGrpcConfig, getGrpcRequestMessage } from "@/components/GrpcRequestEditor";
+import { GrpcRequestEditor, createDefaultGrpcConfig } from "@/components/GrpcRequestEditor";
 import { useProtoSchema } from "@/hooks/useProtoSchemas";
 import { VariableContextProvider, VariableInput, VariableInlinePreview } from "@/components/variable-preview";
 import { useEnvironmentStore } from "@/store/environmentStore";
@@ -72,6 +72,7 @@ export default function Home() {
   const [body, setBody] = useState<RequestBody>(createDefaultBody());
   const [auth, setAuth] = useState<RequestAuth>(createDefaultAuth());
   const [grpcConfig, setGrpcConfig] = useState<GrpcConfig>(createDefaultGrpcConfig());
+  const [grpcRequestMessage, setGrpcRequestMessage] = useState("{\n  \n}");
   const [responseTemplate, setResponseTemplate] = useState<ResponseTemplate | undefined>(undefined);
 
   // gRPC specific
@@ -264,8 +265,15 @@ export default function Home() {
     // Load gRPC config if present
     if (request.grpcConfig) {
       setGrpcConfig(request.grpcConfig);
+      // Load gRPC message from body.raw for gRPC requests
+      if (request.method === "GRPC" && request.body?.raw) {
+        setGrpcRequestMessage(request.body.raw);
+      } else {
+        setGrpcRequestMessage("{\n  \n}");
+      }
     } else {
       setGrpcConfig(createDefaultGrpcConfig());
+      setGrpcRequestMessage("{\n  \n}");
     }
     setResponse(null);
     setTestResults([]);
@@ -290,6 +298,7 @@ export default function Home() {
     setBody(createDefaultBody());
     setAuth(createDefaultAuth());
     setGrpcConfig(createDefaultGrpcConfig());
+    setGrpcRequestMessage("{\n  \n}");
     setPreRequestScript("");
     setTestScript("");
     setResponseTemplate(undefined);
@@ -336,10 +345,13 @@ export default function Home() {
         // Interpolate server address
         const serverAddress = interpolate(url, variables);
 
-        // Get the request message from the gRPC editor
-        const message = getGrpcRequestMessage(grpcConfig);
-
-        // Interpolate message values
+        // Parse and interpolate the request message
+        let message: Record<string, unknown> = {};
+        try {
+          message = JSON.parse(grpcRequestMessage);
+        } catch {
+          // If parsing fails, use empty object
+        }
         const interpolatedMessage = JSON.parse(
           interpolate(JSON.stringify(message), variables)
         );
@@ -597,7 +609,8 @@ export default function Home() {
     url,
     headers,
     params,
-    body,
+    // For gRPC, store the message in body.raw
+    body: method === "GRPC" ? { ...body, mode: "json" as const, raw: grpcRequestMessage } : body,
     auth,
     preRequestScript,
     testScript,
@@ -791,6 +804,8 @@ export default function Home() {
                   onChange={setGrpcConfig}
                   serverAddress={url}
                   onServerAddressChange={setUrl}
+                  requestMessage={grpcRequestMessage}
+                  onRequestMessageChange={setGrpcRequestMessage}
                 />
               )}
 

@@ -18,6 +18,13 @@ export interface ScriptContext {
     statusText: string;
     headers: Record<string, string>;
     data: unknown;
+    // gRPC-specific response fields
+    grpcMetadata?: Record<string, string>;
+    grpcTrailers?: Record<string, string>;
+    grpcStatus?: {
+      code: number;
+      details: string;
+    };
   };
 }
 
@@ -292,6 +299,29 @@ export function runScript(code: string, context: ScriptContext): ScriptResult {
       code: context.response?.status,
       status: context.response?.statusText,
       headers: context.response?.headers,
+      // gRPC-specific response methods
+      metadata: (key?: string): Record<string, string> | string | undefined => {
+        if (!context.response) {
+          throw new Error("pm.response is not available in pre-request scripts");
+        }
+        const metadata = context.response.grpcMetadata || {};
+        if (key) {
+          return metadata[key];
+        }
+        return metadata;
+      },
+      trailers: (key?: string): Record<string, string> | string | undefined => {
+        if (!context.response) {
+          throw new Error("pm.response is not available in pre-request scripts");
+        }
+        const trailers = context.response.grpcTrailers || {};
+        if (key) {
+          return trailers[key];
+        }
+        return trailers;
+      },
+      // gRPC status object (code and details)
+      grpcStatus: context.response?.grpcStatus,
     },
     test: (name: string, fn: () => void): void => {
       try {
