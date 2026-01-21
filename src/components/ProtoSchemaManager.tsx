@@ -66,6 +66,27 @@ function suggestPathsForFile(filename: string, schemas: ProtoSchema[]): string[]
   return [...new Set(suggestions)]; // Dedupe
 }
 
+/**
+ * Find which existing schema could potentially match an unresolved import path
+ * Returns the schema that has a filename matching the import's filename
+ */
+function findSchemaForImport(importPath: string, schemas: ProtoSchema[]): ProtoSchema | null {
+  const importFilename = importPath.split('/').pop(); // e.g., "openapi_options.proto"
+  if (!importFilename) return null;
+
+  // Find a schema whose name matches the import filename
+  for (const schema of schemas) {
+    if (schema.name === importFilename || schema.name.endsWith(importFilename)) {
+      // Check if the schema's current path doesn't match the import
+      if (schema.path !== importPath) {
+        return schema;
+      }
+    }
+  }
+
+  return null;
+}
+
 interface ProtoSchemaManagerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -199,10 +220,23 @@ export function ProtoSchemaManager({
       setEditName(schema.name);
       setEditPath(schema.path);
       setEditCollectionId(schema.collectionId || "");
+
+      // Calculate path suggestions for this schema
+      const suggestions = suggestPathsForFile(schema.name, schemas);
+      setPathSuggestions(suggestions);
+
       parseAndValidate(schema.content);
       setViewMode("edit");
     },
-    [parseAndValidate]
+    [parseAndValidate, schemas]
+  );
+
+  // Quick fix: Update a schema's path to match an import
+  const handleFixPath = useCallback(
+    async (schemaId: string, newPath: string) => {
+      await updateProtoSchema(schemaId, { path: newPath });
+    },
+    []
   );
 
   // Handle save (create or update)
@@ -424,17 +458,39 @@ service MyService {
                   </h3>
                   <p className="text-xs text-zinc-400 mb-2">
                     The following imports are referenced but no proto file with a matching path exists.
-                    Upload the missing files and set their path to match the import statement.
                   </p>
-                  <div className="space-y-1">
-                    {Array.from(unresolvedImports.entries()).map(([importPath, neededBy]) => (
-                      <div key={importPath} className="text-xs bg-zinc-800 px-2 py-1.5 rounded">
-                        <span className="text-yellow-300 font-mono">{importPath}</span>
-                        <span className="text-zinc-500 ml-2">
-                          (needed by: {neededBy.join(', ')})
-                        </span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {Array.from(unresolvedImports.entries()).map(([importPath, neededBy]) => {
+                      const matchingSchema = findSchemaForImport(importPath, schemas);
+                      return (
+                        <div key={importPath} className="text-xs bg-zinc-800 px-2 py-2 rounded">
+                          <div className="flex items-center justify-between">
+                            <span className="text-yellow-300 font-mono">{importPath}</span>
+                            {matchingSchema && (
+                              <button
+                                onClick={() => handleFixPath(matchingSchema.id, importPath)}
+                                className="px-2 py-0.5 bg-green-600 hover:bg-green-700 rounded text-white"
+                              >
+                                Fix
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-zinc-500 mt-1">
+                            needed by: {neededBy.join(', ')}
+                          </div>
+                          {matchingSchema ? (
+                            <div className="text-green-400 mt-1">
+                              Found &quot;{matchingSchema.name}&quot; (current path: &quot;{matchingSchema.path}&quot;)
+                              → Click Fix to update path
+                            </div>
+                          ) : (
+                            <div className="text-zinc-500 mt-1">
+                              Upload a file named &quot;{importPath.split('/').pop()}&quot; and set its path to &quot;{importPath}&quot;
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
