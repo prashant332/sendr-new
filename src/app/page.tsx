@@ -662,6 +662,30 @@ export default function Home() {
               >
                 New Request
               </button>
+              <button
+                onClick={() => setShowProtoManager(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-sm transition-colors"
+                title="Manage Proto Schemas"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-purple-400"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14,2 14,8 20,8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10,9 9,9 8,9" />
+                </svg>
+                <span className="text-zinc-300">Proto</span>
+              </button>
               <EnvironmentSelector onManageClick={() => setShowEnvManager(true)} />
             </div>
           </div>
@@ -682,16 +706,6 @@ export default function Home() {
               <option value="PATCH">PATCH</option>
               <option value="GRPC" className="text-purple-400">gRPC</option>
             </select>
-
-            {method === "GRPC" && (
-              <button
-                onClick={() => setShowProtoManager(true)}
-                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-600/50 rounded px-3 py-2 text-sm font-medium transition-colors"
-                title="Manage Proto Schemas"
-              >
-                Proto
-              </button>
-            )}
 
             <div className="flex-1 flex flex-col">
               <VariableInput
