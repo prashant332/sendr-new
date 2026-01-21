@@ -1346,7 +1346,7 @@ pm.test("gRPC status is OK", () => {
 - [x] Integrate Monaco Editor with protobuf language support
 - [x] Parse proto files and extract services/methods/messages
 - [x] Bundle well-known Google proto types (timestamp, duration, empty, wrappers, any, struct, field_mask)
-- [ ] Implement import resolution algorithm (absolute + relative paths) (partial)
+- [x] Implement import resolution algorithm with path suggestions
 - [ ] Build transitive dependency graph for nested imports (future)
 - [x] Show import resolution errors with actionable suggestions
 - [ ] Re-validate dependent schemas when new files are added (future)

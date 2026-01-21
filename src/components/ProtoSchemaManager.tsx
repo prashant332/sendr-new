@@ -17,6 +17,55 @@ import {
 } from "@/lib/grpc/protoParser";
 import { isWellKnownType } from "@/lib/grpc/wellKnownProtos";
 
+/**
+ * Find all unresolved imports across all schemas
+ */
+function findAllUnresolvedImports(schemas: ProtoSchema[]): Map<string, string[]> {
+  const unresolvedMap = new Map<string, string[]>(); // importPath -> [schemaIds that need it]
+  const resolvedPaths = new Set(schemas.map(s => s.path));
+
+  for (const schema of schemas) {
+    const result = parseProtoContent(schema.content);
+    for (const imp of result.imports) {
+      if (!isWellKnownType(imp) && !resolvedPaths.has(imp)) {
+        const existing = unresolvedMap.get(imp) || [];
+        existing.push(schema.name);
+        unresolvedMap.set(imp, existing);
+      }
+    }
+  }
+
+  return unresolvedMap;
+}
+
+/**
+ * Suggest paths for a file based on imports in other schemas
+ */
+function suggestPathsForFile(filename: string, schemas: ProtoSchema[]): string[] {
+  const suggestions: string[] = [];
+  const fileBasename = filename.replace(/\.proto$/, '');
+
+  // Find imports in other schemas that might match this filename
+  for (const schema of schemas) {
+    const result = parseProtoContent(schema.content);
+    for (const imp of result.imports) {
+      if (!isWellKnownType(imp)) {
+        // Check if the import path ends with this filename
+        if (imp.endsWith(filename) || imp.endsWith(`/${filename}`)) {
+          suggestions.push(imp);
+        }
+        // Also check if basename matches (e.g., "user.proto" matches "user/v1/user.proto")
+        const impBasename = imp.split('/').pop()?.replace(/\.proto$/, '');
+        if (impBasename === fileBasename) {
+          suggestions.push(imp);
+        }
+      }
+    }
+  }
+
+  return [...new Set(suggestions)]; // Dedupe
+}
+
 interface ProtoSchemaManagerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,10 +90,14 @@ export function ProtoSchemaManager({
   const [editCollectionId, setEditCollectionId] = useState<string>("");
   const [parsedServices, setParsedServices] = useState<ParsedService[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
+  const [pathSuggestions, setPathSuggestions] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Get all unresolved imports across schemas
+  const unresolvedImports = findAllUnresolvedImports(schemas);
 
   // Reset state when closing
   const handleClose = () => {
@@ -56,6 +109,7 @@ export function ProtoSchemaManager({
     setEditCollectionId("");
     setParsedServices([]);
     setParseErrors([]);
+    setPathSuggestions([]);
     onClose();
   };
 
@@ -92,8 +146,19 @@ export function ProtoSchemaManager({
         const content = e.target?.result as string;
         setEditContent(content);
         setEditName(file.name);
-        // Default path is just the filename
-        setEditPath(file.name);
+
+        // Find path suggestions based on imports in other schemas
+        const suggestions = suggestPathsForFile(file.name, schemas);
+        setPathSuggestions(suggestions);
+
+        // If there's exactly one suggestion, use it as the default path
+        // Otherwise, default to just the filename
+        if (suggestions.length === 1) {
+          setEditPath(suggestions[0]);
+        } else {
+          setEditPath(file.name);
+        }
+
         parseAndValidate(content);
         setViewMode("add");
       };
@@ -105,7 +170,7 @@ export function ProtoSchemaManager({
         fileInputRef.current.value = "";
       }
     },
-    [parseAndValidate]
+    [parseAndValidate, schemas]
   );
 
   // Handle editor mount
@@ -350,6 +415,29 @@ service MyService {
                   })}
                 </div>
               )}
+
+              {/* Unresolved imports section */}
+              {unresolvedImports.size > 0 && (
+                <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700/50 rounded">
+                  <h3 className="text-sm font-semibold text-yellow-400 mb-2">
+                    Unresolved Imports ({unresolvedImports.size})
+                  </h3>
+                  <p className="text-xs text-zinc-400 mb-2">
+                    The following imports are referenced but no proto file with a matching path exists.
+                    Upload the missing files and set their path to match the import statement.
+                  </p>
+                  <div className="space-y-1">
+                    {Array.from(unresolvedImports.entries()).map(([importPath, neededBy]) => (
+                      <div key={importPath} className="text-xs bg-zinc-800 px-2 py-1.5 rounded">
+                        <span className="text-yellow-300 font-mono">{importPath}</span>
+                        <span className="text-zinc-500 ml-2">
+                          (needed by: {neededBy.join(', ')})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -384,7 +472,31 @@ service MyService {
                         placeholder="user/v1/user_service.proto"
                         className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-sm"
                       />
+                      {/* Path suggestions */}
+                      {pathSuggestions.length > 0 && editPath !== pathSuggestions[0] && (
+                        <div className="mt-1">
+                          <span className="text-xs text-yellow-400">Suggested: </span>
+                          {pathSuggestions.map((suggestion, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setEditPath(suggestion)}
+                              className="text-xs text-blue-400 hover:text-blue-300 mr-2 underline"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  </div>
+                  {/* Info about path matching */}
+                  <div className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1.5 rounded">
+                    The path must match exactly how other proto files import this file.
+                    {unresolvedImports.size > 0 && (
+                      <span className="text-yellow-400 ml-1">
+                        ({unresolvedImports.size} unresolved import{unresolvedImports.size > 1 ? 's' : ''} in other files)
+                      </span>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-zinc-400 mb-1">
