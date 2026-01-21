@@ -135,10 +135,14 @@ export function getMethodTypeCode(method: ParsedMethod): string {
 
 /**
  * Generate a sample JSON message for a message type
+ * @param protoContent - The proto file content
+ * @param messageType - The message type name to generate
+ * @param maxDepth - Maximum recursion depth to prevent infinite loops (default: 5)
  */
 export function generateSampleMessage(
   protoContent: string,
-  messageType: string
+  messageType: string,
+  maxDepth: number = 5
 ): Record<string, unknown> | null {
   try {
     const root = protobuf.parse(protoContent, { keepCase: true });
@@ -146,25 +150,55 @@ export function generateSampleMessage(
 
     if (!Type) return null;
 
-    // Create a sample object with default values
-    const sample: Record<string, unknown> = {};
+    // Track visited types to prevent infinite recursion on self-referential messages
+    const visited = new Set<string>();
 
-    for (const field of Type.fieldsArray) {
-      sample[field.name] = getDefaultValueForField(field);
-    }
-
-    return sample;
+    return generateSampleForType(Type, maxDepth, visited);
   } catch {
     return null;
   }
 }
 
 /**
- * Get default value for a protobuf field
+ * Generate a sample object for a protobuf Type
  */
-function getDefaultValueForField(field: protobuf.Field): unknown {
-  // Handle repeated fields
+function generateSampleForType(
+  type: protobuf.Type,
+  depth: number,
+  visited: Set<string>
+): Record<string, unknown> {
+  if (depth <= 0 || visited.has(type.fullName)) {
+    return {};
+  }
+
+  visited.add(type.fullName);
+  const sample: Record<string, unknown> = {};
+
+  for (const field of type.fieldsArray) {
+    sample[field.name] = getDefaultValueForField(field, depth - 1, visited);
+  }
+
+  visited.delete(type.fullName);
+  return sample;
+}
+
+/**
+ * Get default value for a protobuf field
+ * @param field - The protobuf field
+ * @param depth - Remaining recursion depth
+ * @param visited - Set of visited type names to prevent cycles
+ */
+function getDefaultValueForField(
+  field: protobuf.Field,
+  depth: number,
+  visited: Set<string>
+): unknown {
+  // Handle repeated fields - provide one sample item if nested type
   if (field.repeated) {
+    if (field.resolvedType instanceof protobuf.Type && depth > 0) {
+      // Include one sample item in the array
+      return [generateSampleForType(field.resolvedType, depth, visited)];
+    }
     return [];
   }
 
@@ -201,7 +235,11 @@ function getDefaultValueForField(field: protobuf.Field): unknown {
         const enumValues = Object.values(field.resolvedType.values);
         return enumValues[0] ?? 0;
       }
-      // For nested messages, return empty object
+      // For nested messages, recursively generate sample
+      if (field.resolvedType instanceof protobuf.Type && depth > 0) {
+        return generateSampleForType(field.resolvedType, depth, visited);
+      }
+      // Fallback for unresolved types or depth exceeded
       return {};
   }
 }

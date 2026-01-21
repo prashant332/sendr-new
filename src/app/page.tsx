@@ -174,13 +174,20 @@ export default function Home() {
   }, [isAIInitialized, initializeAI]);
 
   // Switch to appropriate tab when method changes
+  // Use a ref to track previous method to avoid re-triggering on every tab change
+  const prevMethodRef = useRef(method);
   useEffect(() => {
-    if (method === "GRPC") {
-      setActiveTab("grpc");
-    } else if (activeTab === "grpc") {
-      setActiveTab("params");
+    // Only switch tabs when method actually changes
+    if (prevMethodRef.current !== method) {
+      if (method === "GRPC") {
+        setActiveTab("grpc");
+      } else if (prevMethodRef.current === "GRPC") {
+        // Switching away from gRPC - go to params
+        setActiveTab("params");
+      }
+      prevMethodRef.current = method;
     }
-  }, [method, activeTab]);
+  }, [method]);
 
   // Handle AI-generated script insertion
   const handleInsertScript = (script: string, scriptType: ScriptType) => {

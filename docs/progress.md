@@ -196,6 +196,8 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 7 | URL variable interpolation not working | Fixed - Enhanced interpolate function |
 | 8 | Nested variable interpolation not working | Fixed - Recursive interpolation with max depth |
 | 9 | Request name not visible | Fixed - Request name shown in header with tooltip |
+| 10 | While working with gRPC request, cannot go to Auth or Scripts tab - switches back to gRPC tab instantly | Fixed - Removed activeTab from useEffect dependencies, use ref to track method changes |
+| 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Recursive generation with depth limit and cycle detection |
 
 ### Bug Fix Details
 
