@@ -133,55 +133,209 @@ export function getMethodTypeCode(method: ParsedMethod): string {
   return "U";
 }
 
+// Debug flag - set to true to enable console logging
+const DEBUG_PROTO_PARSER = false;
+
+function debugLog(...args: unknown[]) {
+  if (DEBUG_PROTO_PARSER) {
+    console.log('[ProtoParser]', ...args);
+  }
+}
+
+/**
+ * Result of generating a sample message
+ */
+export interface GenerateSampleResult {
+  sample: Record<string, unknown> | null;
+  warnings: string[];
+  errors: string[];
+}
+
 /**
  * Generate a sample JSON message for a message type
- * @param protoContent - The proto file content
+ * @param protoContent - The proto file content (or primary proto content)
  * @param messageType - The message type name to generate
  * @param maxDepth - Maximum recursion depth to prevent infinite loops (default: 5)
+ * @param additionalProtoContents - Additional proto file contents (for imports)
+ * @returns Object with sample, warnings, and errors
  */
 export function generateSampleMessage(
   protoContent: string,
   messageType: string,
-  maxDepth: number = 5
-): Record<string, unknown> | null {
+  maxDepth: number = 5,
+  additionalProtoContents: string[] = []
+): GenerateSampleResult {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  debugLog('=== generateSampleMessage START ===');
+  debugLog('messageType:', messageType);
+  debugLog('mainProtoContent length:', protoContent.length);
+  debugLog('additionalProtoContents count:', additionalProtoContents.length);
+  additionalProtoContents.forEach((c, i) => {
+    debugLog(`  additional[${i}] length:`, c.length);
+  });
+
   try {
-    const root = protobuf.parse(protoContent, { keepCase: true });
+    // Create a single Root to hold all types from all files
+    const root = new protobuf.Root();
+
+    // Track packages we've seen for type lookup later
+    const packages: string[] = [];
+
+    // Parse additional proto contents first (dependencies)
+    for (let i = 0; i < additionalProtoContents.length; i++) {
+      const content = additionalProtoContents[i];
+      try {
+        const parsed = protobuf.parse(content, root, { keepCase: true });
+        if (parsed.package && !packages.includes(parsed.package)) {
+          packages.push(parsed.package);
+        }
+        debugLog(`Parsed additional[${i}] successfully, package: ${parsed.package || '(none)'}`);
+      } catch (parseErr) {
+        const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        debugLog(`Failed to parse additional[${i}]:`, errMsg);
+        warnings.push(`Failed to parse imported proto file: ${errMsg}`);
+        // Continue with other files - don't fail completely
+      }
+    }
+
+    // Parse the main proto content last
+    let mainPackage: string | null = null;
+    try {
+      const parsed = protobuf.parse(protoContent, root, { keepCase: true });
+      mainPackage = parsed.package || null;
+      if (mainPackage && !packages.includes(mainPackage)) {
+        packages.push(mainPackage);
+      }
+      debugLog('Parsed main proto successfully, package:', mainPackage || '(none)');
+    } catch (parseErr) {
+      const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      debugLog('Failed to parse main proto:', errMsg);
+      errors.push(`Failed to parse main proto file: ${errMsg}`);
+      return { sample: null, warnings, errors };
+    }
+
+    debugLog('All packages:', packages);
 
     // IMPORTANT: Resolve all type references before generating samples
     // Without this, field.resolvedType will be null for nested message types
-    root.root.resolveAll();
+    try {
+      root.resolveAll();
+      debugLog('resolveAll() successful');
+    } catch (resolveErr) {
+      const errMsg = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      debugLog('resolveAll() FAILED:', errMsg);
+      warnings.push(`Type resolution warning: ${errMsg}`);
+      // Don't throw - continue and see what we can generate
+    }
+
+    // List all types found in root
+    const allTypes = listAllTypes(root);
+    debugLog('All types found:', allTypes);
 
     // Try to find the type - it might be a simple name or fully qualified
     let Type: protobuf.Type | null = null;
 
     // First try direct lookup
     try {
-      Type = root.root.lookupType(messageType);
-    } catch {
-      // If direct lookup fails, try with package prefix
-      if (root.package) {
+      Type = root.lookupType(messageType);
+      debugLog('Direct lookup SUCCESS for:', messageType);
+    } catch (e) {
+      debugLog('Direct lookup failed for:', messageType, e instanceof Error ? e.message : e);
+    }
+
+    // Try with each known package prefix
+    if (!Type) {
+      for (const pkg of packages) {
         try {
-          Type = root.root.lookupType(`${root.package}.${messageType}`);
+          const fullyQualified = `${pkg}.${messageType}`;
+          Type = root.lookupType(fullyQualified);
+          debugLog('Package-prefixed lookup SUCCESS for:', fullyQualified);
+          break;
         } catch {
-          // Still not found
+          debugLog(`Package-prefixed lookup failed for ${pkg}.${messageType}`);
         }
       }
     }
 
     // If still not found, search through all nested types
     if (!Type) {
-      Type = findTypeByName(root.root, messageType);
+      debugLog('Trying findTypeByName...');
+      Type = findTypeByName(root, messageType);
+      if (Type) {
+        debugLog('findTypeByName SUCCESS, found:', Type.fullName);
+      } else {
+        debugLog('findTypeByName returned null');
+      }
     }
 
-    if (!Type) return null;
+    if (!Type) {
+      debugLog('=== generateSampleMessage END (Type not found) ===');
+      errors.push(`Message type "${messageType}" not found in proto definitions`);
+      return { sample: null, warnings, errors };
+    }
+
+    debugLog('Using Type:', Type.fullName);
+    debugLog('Type fields:', Type.fieldsArray.map(f => ({
+      name: f.name,
+      type: f.type,
+      repeated: f.repeated,
+      resolvedType: f.resolvedType ? f.resolvedType.fullName : null
+    })));
+
+    // Check for unresolved field types and add warnings
+    for (const field of Type.fieldsArray) {
+      if (!isPrimitiveType(field.type) && !field.resolvedType) {
+        warnings.push(`Field "${field.name}" has unresolved type "${field.type}". Check if the proto file defining this type is uploaded with the correct path.`);
+      }
+    }
 
     // Track visited types to prevent infinite recursion on self-referential messages
     const visited = new Set<string>();
 
-    return generateSampleForType(Type, maxDepth, visited);
-  } catch {
-    return null;
+    const sample = generateSampleForType(Type, maxDepth, visited);
+    debugLog('Generated sample:', JSON.stringify(sample, null, 2));
+    debugLog('=== generateSampleMessage END (success) ===');
+    return { sample, warnings, errors };
+  } catch (err) {
+    debugLog('=== generateSampleMessage END (error) ===');
+    debugLog('Error:', err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    errors.push(`Unexpected error: ${errMsg}`);
+    return { sample: null, warnings, errors };
   }
+}
+
+/**
+ * Check if a type is a primitive protobuf type
+ */
+function isPrimitiveType(type: string): boolean {
+  const primitives = [
+    'double', 'float', 'int32', 'int64', 'uint32', 'uint64',
+    'sint32', 'sint64', 'fixed32', 'fixed64', 'sfixed32', 'sfixed64',
+    'bool', 'string', 'bytes'
+  ];
+  return primitives.includes(type);
+}
+
+/**
+ * List all type names in a namespace (for debugging)
+ */
+function listAllTypes(namespace: protobuf.NamespaceBase, prefix: string = ''): string[] {
+  const types: string[] = [];
+  if (!namespace.nested) return types;
+
+  for (const [name, nested] of Object.entries(namespace.nested)) {
+    const fullName = prefix ? `${prefix}.${name}` : name;
+    if (nested instanceof protobuf.Type) {
+      types.push(fullName);
+      // Also list nested types within this type
+      types.push(...listAllTypes(nested, fullName));
+    } else if (nested instanceof protobuf.Namespace) {
+      types.push(...listAllTypes(nested, fullName));
+    }
+  }
+  return types;
 }
 
 /**
@@ -215,7 +369,14 @@ function generateSampleForType(
   depth: number,
   visited: Set<string>
 ): Record<string, unknown> {
-  if (depth <= 0 || visited.has(type.fullName)) {
+  debugLog(`generateSampleForType: ${type.fullName}, depth=${depth}, visited=[${[...visited].join(', ')}]`);
+
+  if (depth <= 0) {
+    debugLog(`  -> returning {} (depth exhausted)`);
+    return {};
+  }
+  if (visited.has(type.fullName)) {
+    debugLog(`  -> returning {} (cycle detected)`);
     return {};
   }
 
@@ -223,7 +384,9 @@ function generateSampleForType(
   const sample: Record<string, unknown> = {};
 
   for (const field of type.fieldsArray) {
+    debugLog(`  Processing field: ${field.name}, type=${field.type}, repeated=${field.repeated}, resolvedType=${field.resolvedType?.fullName || 'null'}`);
     sample[field.name] = getDefaultValueForField(field, depth - 1, visited);
+    debugLog(`  Field ${field.name} = ${JSON.stringify(sample[field.name])}`);
   }
 
   visited.delete(type.fullName);
@@ -243,15 +406,18 @@ function getDefaultValueForField(
 ): unknown {
   // Handle repeated fields - provide one sample item if nested type
   if (field.repeated) {
+    debugLog(`    getDefaultValueForField(${field.name}): repeated field`);
     if (field.resolvedType instanceof protobuf.Type && depth > 0) {
-      // Include one sample item in the array
+      debugLog(`    -> generating array with one sample of ${field.resolvedType.fullName}`);
       return [generateSampleForType(field.resolvedType, depth, visited)];
     }
+    debugLog(`    -> returning empty array (resolvedType=${field.resolvedType?.fullName || 'null'}, depth=${depth})`);
     return [];
   }
 
   // Handle maps
   if (field.map) {
+    debugLog(`    getDefaultValueForField(${field.name}): map field, returning {}`);
     return {};
   }
 
@@ -279,15 +445,23 @@ function getDefaultValueForField(
       return "";
     default:
       // Likely a message type or enum
+      debugLog(`    getDefaultValueForField(${field.name}): custom type "${field.type}"`);
+      debugLog(`      resolvedType: ${field.resolvedType ? field.resolvedType.fullName : 'NULL'}`);
+      debugLog(`      resolvedType instanceof Type: ${field.resolvedType instanceof protobuf.Type}`);
+      debugLog(`      resolvedType instanceof Enum: ${field.resolvedType instanceof protobuf.Enum}`);
+
       if (field.resolvedType instanceof protobuf.Enum) {
         const enumValues = Object.values(field.resolvedType.values);
+        debugLog(`      -> enum, returning first value: ${enumValues[0]}`);
         return enumValues[0] ?? 0;
       }
       // For nested messages, recursively generate sample
       if (field.resolvedType instanceof protobuf.Type && depth > 0) {
+        debugLog(`      -> nested message, recursing into ${field.resolvedType.fullName}`);
         return generateSampleForType(field.resolvedType, depth, visited);
       }
       // Fallback for unresolved types or depth exceeded
+      debugLog(`      -> FALLBACK returning {} (resolvedType=${field.resolvedType?.fullName || 'null'}, depth=${depth})`);
       return {};
   }
 }

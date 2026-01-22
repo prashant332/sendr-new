@@ -198,7 +198,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 9 | Request name not visible | Fixed - Request name shown in header with tooltip |
 | 10 | While working with gRPC request, cannot go to Auth or Scripts tab - switches back to gRPC tab instantly | Fixed - Removed activeTab from useEffect dependencies, use ref to track method changes |
 | 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Added resolveAll() call to resolve type references |
-
+Just a 
 ### Bug Fix Details
 
 #### Bug #4 (Environment Creation in Docker)

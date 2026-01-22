@@ -6,8 +6,9 @@ import type { editor } from "monaco-editor";
 import { useProtoSchemas, useProtoSchema } from "@/hooks/useProtoSchemas";
 import { KeyValueEditor, KeyValuePair } from "@/components/KeyValueEditor";
 import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
-import type { GrpcConfig, GrpcMetadataEntry } from "@/lib/db";
+import type { GrpcConfig, GrpcMetadataEntry, ProtoSchema } from "@/lib/db";
 import { parseProtoContent, generateSampleMessage, getMethodType } from "@/lib/grpc/protoParser";
+import { isWellKnownType, getWellKnownProto } from "@/lib/grpc/wellKnownProtos";
 
 interface GrpcRequestEditorProps {
   config: GrpcConfig | undefined;
@@ -44,8 +45,86 @@ export function GrpcRequestEditor({
 
   const [showProtoManager, setShowProtoManager] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<"message" | "metadata" | "options">("message");
+  const [protoWarnings, setProtoWarnings] = useState<string[]>([]);
+  const [protoErrors, setProtoErrors] = useState<string[]>([]);
 
   const editorRef = useState<editor.IStandaloneCodeEditor | null>(null);
+
+  // Helper to get all imported proto contents for a schema
+  // This dynamically resolves imports from the proto content itself
+  // Also includes ALL other schemas as fallback for unresolved imports
+  const getImportedProtoContents = useCallback(
+    (schema: ProtoSchema | null): string[] => {
+      if (!schema) {
+        return [];
+      }
+      const importedContents: string[] = [];
+      const includedSchemaIds = new Set<string>();
+      const visited = new Set<string>();
+
+      // Recursively collect all imported proto contents by parsing import statements
+      const collectImports = (protoContent: string, schemaPath: string, schemaId?: string) => {
+        if (visited.has(schemaPath)) return;
+        visited.add(schemaPath);
+        if (schemaId) includedSchemaIds.add(schemaId);
+
+        // Parse the proto to get its imports
+        const result = parseProtoContent(protoContent);
+
+        for (const importPath of result.imports) {
+          // Skip already visited
+          if (visited.has(importPath)) continue;
+
+          // Check if it's a well-known type (google/protobuf/*)
+          if (isWellKnownType(importPath)) {
+            const wellKnownContent = getWellKnownProto(importPath);
+            if (wellKnownContent) {
+              importedContents.push(wellKnownContent);
+              visited.add(importPath);
+            }
+            continue;
+          }
+
+          // Find a schema with matching path (exact match)
+          let importedSchema = schemas.find((s) => s.path === importPath);
+
+          // Fallback: try matching by filename only
+          if (!importedSchema) {
+            const importFilename = importPath.split("/").pop();
+            importedSchema = schemas.find(
+              (s) => s.name === importFilename || s.path.endsWith("/" + importFilename) || s.path === importFilename
+            );
+          }
+
+          if (importedSchema) {
+            // Recursively collect imports of this schema first
+            collectImports(importedSchema.content, importedSchema.path, importedSchema.id);
+            // Then add this schema's content
+            importedContents.push(importedSchema.content);
+          }
+        }
+      };
+
+      collectImports(schema.content, schema.path, schema.id);
+
+      // FALLBACK: Include ALL other schemas that weren't already included
+      // This ensures type resolution works even if import paths don't match exactly
+      for (const otherSchema of schemas) {
+        if (otherSchema.id !== schema.id && !includedSchemaIds.has(otherSchema.id)) {
+          importedContents.push(otherSchema.content);
+        }
+      }
+
+      return importedContents;
+    },
+    [schemas]
+  );
+
+  // Get all imported proto contents for the selected schema
+  const importedProtoContents = useMemo(
+    () => getImportedProtoContents(selectedSchema),
+    [selectedSchema, getImportedProtoContents]
+  );
 
   // Parse schema - derived state using useMemo
   const parsedServices = useMemo(() => {
@@ -69,15 +148,22 @@ export function GrpcRequestEditor({
         method: firstMethod?.name || "",
       });
 
-      // Generate sample message for the method
+      // Generate sample message for the method (include all imported protos)
+      // Note: We don't set warnings/errors here to avoid setState in useEffect
+      // Warnings will be shown when user explicitly selects a service/method
       if (firstMethod) {
-        const sample = generateSampleMessage(selectedSchema.content, firstMethod.inputType);
-        if (sample) {
-          onRequestMessageChange(JSON.stringify(sample, null, 2));
+        const result = generateSampleMessage(
+          selectedSchema.content,
+          firstMethod.inputType,
+          5,
+          importedProtoContents
+        );
+        if (result.sample) {
+          onRequestMessageChange(JSON.stringify(result.sample, null, 2));
         }
       }
     }
-  }, [selectedSchema, parsedServices, config, onChange, onRequestMessageChange]);
+  }, [selectedSchema, parsedServices, config, onChange, onRequestMessageChange, importedProtoContents]);
 
   // Get current service object
   const currentService = useMemo(() => {
@@ -117,15 +203,22 @@ export function GrpcRequestEditor({
         method: firstMethod?.name || "",
       });
 
-      // Generate sample message for the method
+      // Generate sample message for the method (include all imported protos)
       if (firstMethod && selectedSchema) {
-        const sample = generateSampleMessage(selectedSchema.content, firstMethod.inputType);
-        if (sample) {
-          onRequestMessageChange(JSON.stringify(sample, null, 2));
+        const result = generateSampleMessage(
+          selectedSchema.content,
+          firstMethod.inputType,
+          5,
+          importedProtoContents
+        );
+        setProtoWarnings(result.warnings);
+        setProtoErrors(result.errors);
+        if (result.sample) {
+          onRequestMessageChange(JSON.stringify(result.sample, null, 2));
         }
       }
     },
-    [config, onChange, parsedServices, selectedSchema, onRequestMessageChange]
+    [config, onChange, parsedServices, selectedSchema, onRequestMessageChange, importedProtoContents]
   );
 
   // Handle method change
@@ -137,16 +230,23 @@ export function GrpcRequestEditor({
         method: methodName,
       });
 
-      // Generate sample message for the method
+      // Generate sample message for the method (include all imported protos)
       const method = currentService?.methods.find((m) => m.name === methodName);
       if (method && selectedSchema) {
-        const sample = generateSampleMessage(selectedSchema.content, method.inputType);
-        if (sample) {
-          onRequestMessageChange(JSON.stringify(sample, null, 2));
+        const result = generateSampleMessage(
+          selectedSchema.content,
+          method.inputType,
+          5,
+          importedProtoContents
+        );
+        setProtoWarnings(result.warnings);
+        setProtoErrors(result.errors);
+        if (result.sample) {
+          onRequestMessageChange(JSON.stringify(result.sample, null, 2));
         }
       }
     },
-    [config, onChange, currentService, selectedSchema, onRequestMessageChange]
+    [config, onChange, currentService, selectedSchema, onRequestMessageChange, importedProtoContents]
   );
 
   // Handle metadata change
@@ -300,6 +400,38 @@ export function GrpcRequestEditor({
           ))}
         </div>
       </div>
+
+      {/* Proto Warnings/Errors */}
+      {(protoErrors.length > 0 || protoWarnings.length > 0) && (
+        <div className="space-y-2">
+          {protoErrors.length > 0 && (
+            <div className="bg-red-900/30 border border-red-700/50 rounded p-3">
+              <div className="flex items-center gap-2 text-red-400 text-sm font-medium mb-1">
+                <span>⚠</span>
+                <span>Proto Errors</span>
+              </div>
+              <ul className="text-xs text-red-300 space-y-1">
+                {protoErrors.map((err, i) => (
+                  <li key={i}>• {err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {protoWarnings.length > 0 && (
+            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded p-3">
+              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium mb-1">
+                <span>⚡</span>
+                <span>Proto Warnings</span>
+              </div>
+              <ul className="text-xs text-yellow-300 space-y-1">
+                {protoWarnings.map((warn, i) => (
+                  <li key={i}>• {warn}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Message Editor */}
       {activeSubTab === "message" && (
