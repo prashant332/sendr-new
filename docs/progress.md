@@ -197,7 +197,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 8 | Nested variable interpolation not working | Fixed - Recursive interpolation with max depth |
 | 9 | Request name not visible | Fixed - Request name shown in header with tooltip |
 | 10 | While working with gRPC request, cannot go to Auth or Scripts tab - switches back to gRPC tab instantly | Fixed - Removed activeTab from useEffect dependencies, use ref to track method changes |
-| 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Recursive generation with depth limit and cycle detection |
+| 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Added resolveAll() call to resolve type references |
 
 ### Bug Fix Details
 
@@ -221,6 +221,16 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - Variables containing other variables are now resolved iteratively
 - Example: `baseURL = "https://{{envType}}.example.com"` + `envType = "prod"` → `"https://prod.example.com"`
 - Added `maxDepth` parameter (default: 10) to prevent infinite loops
+
+#### Bug #11 (gRPC Nested Message Generation)
+
+**Root Cause:** protobufjs requires calling `resolveAll()` on the root after parsing to resolve type references. Without this, `field.resolvedType` is `null` for nested message types.
+
+**Fix Applied:**
+- Added `root.root.resolveAll()` call in `generateSampleMessage()` after parsing
+- This ensures all type references are resolved before generating samples
+- Nested message types now properly generate sample fields recursively
+- Includes depth limit (default: 5) and cycle detection for self-referential messages
 
 ---
 

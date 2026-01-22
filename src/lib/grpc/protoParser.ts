@@ -146,6 +146,11 @@ export function generateSampleMessage(
 ): Record<string, unknown> | null {
   try {
     const root = protobuf.parse(protoContent, { keepCase: true });
+
+    // IMPORTANT: Resolve all type references before generating samples
+    // Without this, field.resolvedType will be null for nested message types
+    root.root.resolveAll();
+
     const Type = root.root.lookupType(messageType);
 
     if (!Type) return null;
