@@ -151,7 +151,27 @@ export function generateSampleMessage(
     // Without this, field.resolvedType will be null for nested message types
     root.root.resolveAll();
 
-    const Type = root.root.lookupType(messageType);
+    // Try to find the type - it might be a simple name or fully qualified
+    let Type: protobuf.Type | null = null;
+
+    // First try direct lookup
+    try {
+      Type = root.root.lookupType(messageType);
+    } catch {
+      // If direct lookup fails, try with package prefix
+      if (root.package) {
+        try {
+          Type = root.root.lookupType(`${root.package}.${messageType}`);
+        } catch {
+          // Still not found
+        }
+      }
+    }
+
+    // If still not found, search through all nested types
+    if (!Type) {
+      Type = findTypeByName(root.root, messageType);
+    }
 
     if (!Type) return null;
 
@@ -162,6 +182,29 @@ export function generateSampleMessage(
   } catch {
     return null;
   }
+}
+
+/**
+ * Recursively search for a type by its simple name
+ */
+function findTypeByName(namespace: protobuf.NamespaceBase, typeName: string): protobuf.Type | null {
+  if (!namespace.nested) return null;
+
+  for (const nested of Object.values(namespace.nested)) {
+    if (nested instanceof protobuf.Type) {
+      if (nested.name === typeName) {
+        return nested;
+      }
+      // Also search nested types within this type
+      const found = findTypeByName(nested, typeName);
+      if (found) return found;
+    } else if (nested instanceof protobuf.Namespace) {
+      const found = findTypeByName(nested, typeName);
+      if (found) return found;
+    }
+  }
+
+  return null;
 }
 
 /**
