@@ -14,6 +14,9 @@ interface EnvironmentState {
   // Initialize the store - must be called from useEffect
   initialize: () => Promise<void>;
 
+  // Refresh environments from database (call after import)
+  refreshEnvironments: () => Promise<void>;
+
   addEnvironment: (name: string) => Promise<void>;
   updateEnvironment: (id: string, updates: Partial<Omit<Environment, "id">>) => Promise<void>;
   deleteEnvironment: (id: string) => Promise<void>;
@@ -99,6 +102,17 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
     })();
 
     return initState.promise;
+  },
+
+  refreshEnvironments: async () => {
+    try {
+      await ensureDbReady();
+      const environments = await db.environments.toArray();
+      set({ environments });
+    } catch (error) {
+      console.error("Failed to refresh environments:", error);
+      throw error;
+    }
   },
 
   addEnvironment: async (name: string) => {

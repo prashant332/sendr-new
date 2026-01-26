@@ -198,7 +198,8 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 9 | Request name not visible | Fixed - Request name shown in header with tooltip |
 | 10 | While working with gRPC request, cannot go to Auth or Scripts tab - switches back to gRPC tab instantly | Fixed - Removed activeTab from useEffect dependencies, use ref to track method changes |
 | 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Added resolveAll() call to resolve type references |
-Just a 
+| 12 | Proto parse errors only shown in console, not in UI | Fixed - Added warnings/errors display in GrpcRequestEditor |
+
 ### Bug Fix Details
 
 #### Bug #4 (Environment Creation in Docker)
@@ -231,6 +232,59 @@ Just a
 - This ensures all type references are resolved before generating samples
 - Nested message types now properly generate sample fields recursively
 - Includes depth limit (default: 5) and cycle detection for self-referential messages
+
+---
+
+## Demo Collection
+
+A comprehensive demo collection is available to showcase all Sendr features using publicly available test APIs. All demo files are located in the `demo/` directory (separate from docs).
+
+### Files
+
+| File | Description |
+|------|-------------|
+| `demo/README.md` | Quick start guide for the demo collection |
+| `demo/demo-collection.json` | Sendr export file with 7 collections (36 requests) |
+| `demo/demo-environment.json` | Environment variables reference |
+| `demo/demo-collection.md` | Planning document with detailed specifications |
+| `demo/GRPC-TESTING.md` | gRPC setup and testing guide |
+| `demo/protos/` | Sample proto files for gRPC testing |
+
+### Collections Included
+
+1. **Basic Requests** - GET, POST, PUT, PATCH, DELETE operations
+2. **Body Types** - JSON, Form Data, URL Encoded, XML, Raw Text
+3. **Authentication** - Bearer, Basic, API Key (header & query)
+4. **Variables & Scripting** - Pre-request scripts, variable chaining, interpolation
+5. **Response Visualizer** - Table, Cards, List, Key-Value views
+6. **Workflow Demo** - Complete CRUD workflow with variable passing
+7. **gRPC Demo** - Unary calls with complex nested messages
+
+### Sample Proto Files
+
+Realistic proto files demonstrating:
+- Nested imports across packages
+- Well-known Google types (timestamp, field_mask, empty)
+- Complex message structures (nested messages, maps, enums, oneOf)
+- Cross-package type references
+
+```
+demo/protos/
+├── common/types.proto       # Money, Address, Pagination
+├── common/enums.proto       # Status, Currency, SortOrder
+├── user/v1/user.proto       # User message
+├── user/v1/user_service.proto # UserService (8 RPC methods)
+├── order/v1/order.proto     # Order message (complex)
+└── order/v1/order_service.proto # OrderService (9 RPC methods)
+```
+
+### How to Use
+
+1. Import `demo/demo-collection.json` using the Import/Export feature
+2. Create a new environment with variables from `demo/demo-environment.json`
+3. Select the environment and run any collection
+4. Use the Workflow Runner on "6. Workflow Demo" to see sequential execution
+5. For gRPC: Upload proto files from `demo/protos/` and see `demo/GRPC-TESTING.md`
 
 ---
 

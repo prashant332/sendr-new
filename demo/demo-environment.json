@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "exportedAt": "2024-01-15T00:00:00.000Z",
+  "collections": [],
+  "environments": [
+    {
+      "name": "Demo Environment",
+      "variables": {
+        "baseUrl": "https://jsonplaceholder.typicode.com",
+        "httpBinUrl": "https://httpbin.org",
+        "reqResUrl": "https://reqres.in/api",
+        "dogApiUrl": "https://dog.ceo/api",
+        "testToken": "demo-token-12345",
+        "testUser": "testuser",
+        "testPass": "testpass123",
+        "apiKey": "demo-api-key-xyz",
+        "userId": "1",
+        "postId": "1",
+        "grpcServer": "localhost:50051",
+        "requestId": "req-001"
+      }
+    }
+  ]
+}

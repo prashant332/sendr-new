@@ -1,0 +1,67 @@
+// Common types used across services
+// This proto demonstrates basic message types and nested messages
+
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/example/demo/common";
+
+// Money represents a monetary value with currency
+message Money {
+  // Amount in smallest currency unit (cents for USD)
+  int64 amount = 1;
+
+  // ISO 4217 currency code (e.g., "USD", "EUR", "GBP")
+  string currency_code = 2;
+}
+
+// Address represents a physical address
+message Address {
+  string street_line_1 = 1;
+  string street_line_2 = 2;
+  string city = 3;
+  string state = 4;
+  string postal_code = 5;
+  string country_code = 6;  // ISO 3166-1 alpha-2
+
+  // Optional coordinates
+  GeoLocation geo = 7;
+}
+
+// GeoLocation represents geographic coordinates
+message GeoLocation {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+// Pagination request parameters
+message PaginationRequest {
+  int32 page_size = 1;    // Number of items per page (max 100)
+  string page_token = 2;  // Token for the next page
+}
+
+// Pagination response metadata
+message PaginationResponse {
+  string next_page_token = 1;  // Empty if no more pages
+  int32 total_count = 2;       // Total items across all pages
+  bool has_more = 3;           // Whether more pages exist
+}
+
+// Generic key-value metadata
+message Metadata {
+  map<string, string> values = 1;
+}
+
+// Phone number with type
+message PhoneNumber {
+  string number = 1;
+  PhoneType type = 2;
+
+  enum PhoneType {
+    PHONE_TYPE_UNSPECIFIED = 0;
+    PHONE_TYPE_MOBILE = 1;
+    PHONE_TYPE_HOME = 2;
+    PHONE_TYPE_WORK = 3;
+  }
+}

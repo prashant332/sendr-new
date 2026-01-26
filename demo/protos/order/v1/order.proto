@@ -1,0 +1,263 @@
+// Order domain model
+// Demonstrates cross-package imports and complex nested structures
+
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "github.com/example/demo/order/v1";
+
+import "google/protobuf/timestamp.proto";
+import "common/types.proto";
+import "common/enums.proto";
+import "user/v1/user.proto";
+
+// Order represents a customer order
+message Order {
+  // Unique order identifier
+  string id = 1;
+
+  // Order number (human-readable, e.g., "ORD-2024-001234")
+  string order_number = 2;
+
+  // Customer information (denormalized snapshot at order time)
+  CustomerSnapshot customer = 3;
+
+  // Order items
+  repeated OrderItem items = 4;
+
+  // Order status
+  OrderStatus status = 5;
+
+  // Pricing breakdown
+  OrderPricing pricing = 6;
+
+  // Shipping information
+  ShippingInfo shipping = 7;
+
+  // Payment information
+  PaymentInfo payment = 8;
+
+  // Order timestamps
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Timestamp completed_at = 11;
+
+  // Order notes (internal and customer-visible)
+  repeated OrderNote notes = 12;
+
+  // Custom metadata
+  common.Metadata metadata = 13;
+}
+
+// CustomerSnapshot captures customer info at order time
+message CustomerSnapshot {
+  string user_id = 1;
+  string email = 2;
+  string display_name = 3;
+  common.Address shipping_address = 4;
+  common.Address billing_address = 5;
+  common.PhoneNumber phone = 6;
+}
+
+// OrderItem represents a single line item in an order
+message OrderItem {
+  string id = 1;
+  string product_id = 2;
+  string product_name = 3;
+  string sku = 4;
+
+  // Quantity ordered
+  int32 quantity = 5;
+
+  // Unit price at time of order
+  common.Money unit_price = 6;
+
+  // Total for this line (quantity * unit_price + adjustments)
+  common.Money line_total = 7;
+
+  // Item-level discounts applied
+  repeated Discount discounts = 8;
+
+  // Product variant details
+  ProductVariant variant = 9;
+
+  // Item status (for partial fulfillment)
+  OrderItemStatus status = 10;
+}
+
+// ProductVariant captures variant-specific details
+message ProductVariant {
+  string variant_id = 1;
+
+  // Variant attributes (e.g., "Color": "Red", "Size": "Large")
+  map<string, string> attributes = 2;
+
+  // Variant-specific image
+  string image_url = 3;
+}
+
+// OrderStatus tracks overall order state
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;         // Order created, awaiting payment
+  ORDER_STATUS_CONFIRMED = 2;       // Payment received
+  ORDER_STATUS_PROCESSING = 3;      // Being prepared
+  ORDER_STATUS_SHIPPED = 4;         // Handed to carrier
+  ORDER_STATUS_DELIVERED = 5;       // Delivered to customer
+  ORDER_STATUS_CANCELLED = 6;       // Cancelled
+  ORDER_STATUS_REFUNDED = 7;        // Fully refunded
+  ORDER_STATUS_PARTIALLY_REFUNDED = 8;
+}
+
+// OrderItemStatus for individual item tracking
+enum OrderItemStatus {
+  ORDER_ITEM_STATUS_UNSPECIFIED = 0;
+  ORDER_ITEM_STATUS_PENDING = 1;
+  ORDER_ITEM_STATUS_FULFILLED = 2;
+  ORDER_ITEM_STATUS_BACKORDERED = 3;
+  ORDER_ITEM_STATUS_CANCELLED = 4;
+  ORDER_ITEM_STATUS_RETURNED = 5;
+}
+
+// OrderPricing contains complete pricing breakdown
+message OrderPricing {
+  common.Money subtotal = 1;           // Sum of line items before discounts
+  common.Money discount_total = 2;     // Total discounts applied
+  common.Money shipping_cost = 3;      // Shipping charges
+  common.Money tax_total = 4;          // Total taxes
+  common.Money grand_total = 5;        // Final amount charged
+
+  // Tax breakdown by jurisdiction
+  repeated TaxLine tax_lines = 6;
+
+  // Order-level discounts
+  repeated Discount discounts = 7;
+
+  // Currency for all amounts
+  common.Currency currency = 8;
+}
+
+// TaxLine represents a single tax charge
+message TaxLine {
+  string jurisdiction = 1;    // e.g., "CA", "NY-NYC"
+  string tax_type = 2;        // e.g., "Sales Tax", "VAT"
+  float rate = 3;             // Tax rate as decimal (0.0875 = 8.75%)
+  common.Money amount = 4;
+}
+
+// Discount represents a price reduction
+message Discount {
+  string code = 1;            // Promo code if applicable
+  string description = 2;
+  DiscountType type = 3;
+  common.Money amount = 4;    // Actual discount amount
+
+  enum DiscountType {
+    DISCOUNT_TYPE_UNSPECIFIED = 0;
+    DISCOUNT_TYPE_PERCENTAGE = 1;
+    DISCOUNT_TYPE_FIXED_AMOUNT = 2;
+    DISCOUNT_TYPE_FREE_SHIPPING = 3;
+    DISCOUNT_TYPE_BUY_X_GET_Y = 4;
+  }
+}
+
+// ShippingInfo contains shipping details
+message ShippingInfo {
+  common.Address address = 1;
+
+  // Shipping method selected
+  ShippingMethod method = 2;
+
+  // Tracking information
+  repeated TrackingInfo tracking = 3;
+
+  // Estimated and actual delivery dates
+  google.protobuf.Timestamp estimated_delivery = 4;
+  google.protobuf.Timestamp actual_delivery = 5;
+
+  // Special delivery instructions
+  string instructions = 6;
+}
+
+// ShippingMethod details
+message ShippingMethod {
+  string id = 1;
+  string carrier = 2;        // e.g., "UPS", "FedEx", "USPS"
+  string service_level = 3;  // e.g., "Ground", "Express", "Overnight"
+  common.Money cost = 4;
+  string estimated_days = 5; // e.g., "3-5 business days"
+}
+
+// TrackingInfo for shipment tracking
+message TrackingInfo {
+  string carrier = 1;
+  string tracking_number = 2;
+  string tracking_url = 3;
+  ShipmentStatus status = 4;
+  google.protobuf.Timestamp last_update = 5;
+
+  enum ShipmentStatus {
+    SHIPMENT_STATUS_UNSPECIFIED = 0;
+    SHIPMENT_STATUS_LABEL_CREATED = 1;
+    SHIPMENT_STATUS_PICKED_UP = 2;
+    SHIPMENT_STATUS_IN_TRANSIT = 3;
+    SHIPMENT_STATUS_OUT_FOR_DELIVERY = 4;
+    SHIPMENT_STATUS_DELIVERED = 5;
+    SHIPMENT_STATUS_EXCEPTION = 6;
+  }
+}
+
+// PaymentInfo captures payment details
+message PaymentInfo {
+  PaymentMethod method = 1;
+  PaymentStatus status = 2;
+
+  // Transaction references
+  string transaction_id = 1;
+  string authorization_code = 2;
+
+  // For card payments (masked)
+  CardInfo card = 5;
+
+  // Timestamps
+  google.protobuf.Timestamp authorized_at = 6;
+  google.protobuf.Timestamp captured_at = 7;
+
+  enum PaymentMethod {
+    PAYMENT_METHOD_UNSPECIFIED = 0;
+    PAYMENT_METHOD_CREDIT_CARD = 1;
+    PAYMENT_METHOD_DEBIT_CARD = 2;
+    PAYMENT_METHOD_PAYPAL = 3;
+    PAYMENT_METHOD_APPLE_PAY = 4;
+    PAYMENT_METHOD_GOOGLE_PAY = 5;
+    PAYMENT_METHOD_BANK_TRANSFER = 6;
+  }
+
+  enum PaymentStatus {
+    PAYMENT_STATUS_UNSPECIFIED = 0;
+    PAYMENT_STATUS_PENDING = 1;
+    PAYMENT_STATUS_AUTHORIZED = 2;
+    PAYMENT_STATUS_CAPTURED = 3;
+    PAYMENT_STATUS_FAILED = 4;
+    PAYMENT_STATUS_REFUNDED = 5;
+  }
+}
+
+// CardInfo for masked card details
+message CardInfo {
+  string brand = 1;          // e.g., "Visa", "Mastercard"
+  string last_four = 2;      // Last 4 digits
+  string exp_month = 3;
+  string exp_year = 4;
+}
+
+// OrderNote for internal and customer-visible notes
+message OrderNote {
+  string id = 1;
+  string content = 2;
+  string author_id = 3;      // User ID who created the note
+  string author_name = 4;
+  bool is_internal = 5;      // If true, not visible to customer
+  google.protobuf.Timestamp created_at = 6;
+}

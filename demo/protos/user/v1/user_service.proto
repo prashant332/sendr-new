@@ -1,0 +1,184 @@
+// User Service API
+// Demonstrates service definition with various RPC patterns
+
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "github.com/example/demo/user/v1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "user/v1/user.proto";
+import "common/types.proto";
+import "common/enums.proto";
+
+// UserService provides user management operations
+service UserService {
+  // Create a new user account
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+
+  // Get user by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // Update user information
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+
+  // Delete a user account
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+
+  // List users with pagination and filtering
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  // Search users by query
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse);
+
+  // Get user preferences
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (UserPreferences);
+
+  // Update user preferences
+  rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UserPreferences);
+}
+
+// CreateUserRequest for creating a new user
+message CreateUserRequest {
+  string email = 1;
+  string password = 2;  // Will be hashed server-side
+  string display_name = 3;
+  UserProfile profile = 4;
+
+  // Optional: assign roles at creation
+  repeated string role_ids = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+// GetUserRequest for retrieving a user
+message GetUserRequest {
+  // User identifier - supports multiple lookup methods
+  oneof identifier {
+    string user_id = 1;
+    string email = 2;
+  }
+
+  // Fields to include in response (empty = all fields)
+  google.protobuf.FieldMask field_mask = 3;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+// UpdateUserRequest for modifying user data
+message UpdateUserRequest {
+  string user_id = 1;
+
+  // Fields to update
+  User user = 2;
+
+  // Which fields to update (required for partial updates)
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+// DeleteUserRequest for removing a user
+message DeleteUserRequest {
+  string user_id = 1;
+
+  // If true, permanently delete. If false, soft delete (set status to DELETED)
+  bool hard_delete = 2;
+}
+
+// ListUsersRequest for paginated user listing
+message ListUsersRequest {
+  common.PaginationRequest pagination = 1;
+
+  // Filter options
+  ListUsersFilter filter = 2;
+
+  // Sort options
+  ListUsersSort sort = 3;
+}
+
+message ListUsersFilter {
+  // Filter by status
+  repeated common.Status statuses = 1;
+
+  // Filter by role
+  repeated string role_ids = 2;
+
+  // Filter by creation date range
+  DateRange created_at_range = 3;
+
+  message DateRange {
+    google.protobuf.Timestamp start = 1;
+    google.protobuf.Timestamp end = 2;
+  }
+}
+
+message ListUsersSort {
+  // Field to sort by
+  SortField field = 1;
+
+  // Sort direction
+  common.SortOrder order = 2;
+
+  enum SortField {
+    SORT_FIELD_UNSPECIFIED = 0;
+    SORT_FIELD_CREATED_AT = 1;
+    SORT_FIELD_UPDATED_AT = 2;
+    SORT_FIELD_DISPLAY_NAME = 3;
+    SORT_FIELD_EMAIL = 4;
+  }
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+// SearchUsersRequest for text search
+message SearchUsersRequest {
+  // Search query (searches name, email, bio)
+  string query = 1;
+
+  common.PaginationRequest pagination = 2;
+
+  // Limit search to specific fields
+  repeated SearchField search_fields = 3;
+
+  enum SearchField {
+    SEARCH_FIELD_UNSPECIFIED = 0;  // Search all fields
+    SEARCH_FIELD_EMAIL = 1;
+    SEARCH_FIELD_DISPLAY_NAME = 2;
+    SEARCH_FIELD_BIO = 3;
+  }
+}
+
+message SearchUsersResponse {
+  repeated UserSearchResult results = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+message UserSearchResult {
+  User user = 1;
+  float relevance_score = 2;  // 0.0 to 1.0
+  repeated string matched_fields = 3;
+}
+
+// GetUserPreferencesRequest
+message GetUserPreferencesRequest {
+  string user_id = 1;
+}
+
+// UpdateUserPreferencesRequest
+message UpdateUserPreferencesRequest {
+  string user_id = 1;
+  UserPreferences preferences = 2;
+  google.protobuf.FieldMask update_mask = 3;
+}

@@ -1,0 +1,304 @@
+// Order Service API
+// Demonstrates complex service with various RPC patterns
+
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "github.com/example/demo/order/v1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "order/v1/order.proto";
+import "common/types.proto";
+
+// OrderService provides order management operations
+service OrderService {
+  // Create a new order
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+
+  // Get order by ID or order number
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+
+  // Update order (limited fields based on status)
+  rpc UpdateOrder(UpdateOrderRequest) returns (UpdateOrderResponse);
+
+  // Cancel an order
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+
+  // List orders with filtering and pagination
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+
+  // Get order statistics/summary
+  rpc GetOrderStats(GetOrderStatsRequest) returns (GetOrderStatsResponse);
+
+  // Add a note to an order
+  rpc AddOrderNote(AddOrderNoteRequest) returns (OrderNote);
+
+  // Update order status (for fulfillment workflows)
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (Order);
+
+  // Process refund
+  rpc RefundOrder(RefundOrderRequest) returns (RefundOrderResponse);
+}
+
+// CreateOrderRequest
+message CreateOrderRequest {
+  // Customer ID (required)
+  string customer_id = 1;
+
+  // Items to order
+  repeated CreateOrderItem items = 2;
+
+  // Shipping address (required)
+  common.Address shipping_address = 3;
+
+  // Billing address (uses shipping if not provided)
+  common.Address billing_address = 4;
+
+  // Selected shipping method ID
+  string shipping_method_id = 5;
+
+  // Promo codes to apply
+  repeated string promo_codes = 6;
+
+  // Order notes
+  string customer_note = 7;
+
+  // Idempotency key for duplicate prevention
+  string idempotency_key = 8;
+}
+
+message CreateOrderItem {
+  string product_id = 1;
+  string variant_id = 2;
+  int32 quantity = 3;
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+
+  // Warnings (e.g., "Item X has limited stock")
+  repeated string warnings = 2;
+}
+
+// GetOrderRequest
+message GetOrderRequest {
+  oneof identifier {
+    string order_id = 1;
+    string order_number = 2;
+  }
+
+  // Include related data
+  bool include_items = 3;
+  bool include_notes = 4;
+
+  google.protobuf.FieldMask field_mask = 5;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+// UpdateOrderRequest
+message UpdateOrderRequest {
+  string order_id = 1;
+
+  // Updatable fields (depends on order status)
+  Order order = 2;
+
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message UpdateOrderResponse {
+  Order order = 1;
+}
+
+// CancelOrderRequest
+message CancelOrderRequest {
+  string order_id = 1;
+
+  // Reason for cancellation
+  CancellationReason reason = 2;
+
+  // Additional details
+  string reason_details = 3;
+
+  // Whether to process refund automatically
+  bool auto_refund = 4;
+
+  enum CancellationReason {
+    CANCELLATION_REASON_UNSPECIFIED = 0;
+    CANCELLATION_REASON_CUSTOMER_REQUEST = 1;
+    CANCELLATION_REASON_OUT_OF_STOCK = 2;
+    CANCELLATION_REASON_PAYMENT_FAILED = 3;
+    CANCELLATION_REASON_FRAUD_SUSPECTED = 4;
+    CANCELLATION_REASON_SHIPPING_ISSUE = 5;
+    CANCELLATION_REASON_OTHER = 6;
+  }
+}
+
+message CancelOrderResponse {
+  Order order = 1;
+  RefundInfo refund = 2;
+
+  message RefundInfo {
+    string refund_id = 1;
+    common.Money amount = 2;
+    string status = 3;
+  }
+}
+
+// ListOrdersRequest
+message ListOrdersRequest {
+  common.PaginationRequest pagination = 1;
+
+  // Filters
+  OrderFilters filters = 2;
+
+  // Sort
+  OrderSort sort = 3;
+}
+
+message OrderFilters {
+  // Filter by customer
+  string customer_id = 1;
+
+  // Filter by status
+  repeated OrderStatus statuses = 2;
+
+  // Date range
+  google.protobuf.Timestamp created_after = 3;
+  google.protobuf.Timestamp created_before = 4;
+
+  // Price range
+  common.Money min_total = 5;
+  common.Money max_total = 6;
+
+  // Search by order number
+  string order_number_contains = 7;
+}
+
+message OrderSort {
+  SortField field = 1;
+  common.SortOrder order = 2;
+
+  enum SortField {
+    SORT_FIELD_UNSPECIFIED = 0;
+    SORT_FIELD_CREATED_AT = 1;
+    SORT_FIELD_UPDATED_AT = 2;
+    SORT_FIELD_TOTAL = 3;
+    SORT_FIELD_ORDER_NUMBER = 4;
+  }
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  common.PaginationResponse pagination = 2;
+}
+
+// GetOrderStatsRequest
+message GetOrderStatsRequest {
+  // Time period for stats
+  google.protobuf.Timestamp start_date = 1;
+  google.protobuf.Timestamp end_date = 2;
+
+  // Optional: filter by customer
+  string customer_id = 3;
+
+  // Granularity for time series data
+  Granularity granularity = 4;
+
+  enum Granularity {
+    GRANULARITY_UNSPECIFIED = 0;
+    GRANULARITY_HOURLY = 1;
+    GRANULARITY_DAILY = 2;
+    GRANULARITY_WEEKLY = 3;
+    GRANULARITY_MONTHLY = 4;
+  }
+}
+
+message GetOrderStatsResponse {
+  // Summary stats
+  int32 total_orders = 1;
+  common.Money total_revenue = 2;
+  common.Money average_order_value = 3;
+
+  // Status breakdown
+  map<string, int32> orders_by_status = 4;
+
+  // Time series data
+  repeated TimeSeriesDataPoint revenue_over_time = 5;
+  repeated TimeSeriesDataPoint orders_over_time = 6;
+
+  // Top products
+  repeated TopProduct top_products = 7;
+}
+
+message TimeSeriesDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double value = 2;
+}
+
+message TopProduct {
+  string product_id = 1;
+  string product_name = 2;
+  int32 quantity_sold = 3;
+  common.Money revenue = 4;
+}
+
+// AddOrderNoteRequest
+message AddOrderNoteRequest {
+  string order_id = 1;
+  string content = 2;
+  bool is_internal = 3;
+}
+
+// UpdateOrderStatusRequest
+message UpdateOrderStatusRequest {
+  string order_id = 1;
+  OrderStatus new_status = 2;
+
+  // Optional tracking info when shipping
+  TrackingInfo tracking = 3;
+
+  // Reason for status change
+  string reason = 4;
+}
+
+// RefundOrderRequest
+message RefundOrderRequest {
+  string order_id = 1;
+
+  // Full refund if not specified
+  RefundType type = 2;
+
+  // For partial refunds
+  common.Money amount = 3;
+
+  // For item-level refunds
+  repeated ItemRefund item_refunds = 4;
+
+  string reason = 5;
+
+  enum RefundType {
+    REFUND_TYPE_UNSPECIFIED = 0;
+    REFUND_TYPE_FULL = 1;
+    REFUND_TYPE_PARTIAL_AMOUNT = 2;
+    REFUND_TYPE_PARTIAL_ITEMS = 3;
+  }
+
+  message ItemRefund {
+    string item_id = 1;
+    int32 quantity = 2;
+    string reason = 3;
+  }
+}
+
+message RefundOrderResponse {
+  string refund_id = 1;
+  common.Money refunded_amount = 2;
+  string status = 3;
+  Order updated_order = 4;
+}

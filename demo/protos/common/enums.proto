@@ -1,0 +1,40 @@
+// Common enums used across services
+// This proto demonstrates enum definitions with reserved values
+
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/example/demo/common";
+
+// Status represents generic entity status
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_INACTIVE = 2;
+  STATUS_PENDING = 3;
+  STATUS_SUSPENDED = 4;
+  STATUS_DELETED = 5;
+
+  // Reserved for future use
+  reserved 6 to 10;
+}
+
+// Currency codes (subset of ISO 4217)
+enum Currency {
+  CURRENCY_UNSPECIFIED = 0;
+  CURRENCY_USD = 1;  // US Dollar
+  CURRENCY_EUR = 2;  // Euro
+  CURRENCY_GBP = 3;  // British Pound
+  CURRENCY_JPY = 4;  // Japanese Yen
+  CURRENCY_CAD = 5;  // Canadian Dollar
+  CURRENCY_AUD = 6;  // Australian Dollar
+  CURRENCY_INR = 7;  // Indian Rupee
+}
+
+// Sort order for list operations
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_ASC = 1;
+  SORT_ORDER_DESC = 2;
+}

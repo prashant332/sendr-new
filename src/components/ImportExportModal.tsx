@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useCollections } from "@/hooks/useCollections";
+import { useEnvironmentStore } from "@/store/environmentStore";
 import {
   exportToJson,
   downloadJson,
@@ -26,6 +27,7 @@ export function ImportExportModal({ isOpen, onClose }: ImportExportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const collections = useCollections();
+  const refreshEnvironments = useEnvironmentStore((state) => state.refreshEnvironments);
 
   // Handle file selection
   const handleFileSelect = useCallback(async (file: File) => {
@@ -34,6 +36,7 @@ export function ImportExportModal({ isOpen, onClose }: ImportExportModalProps) {
         success: false,
         collectionsImported: 0,
         requestsImported: 0,
+        environmentsImported: 0,
         errors: ["Please select a JSON file"],
         warnings: [],
       });
@@ -47,18 +50,24 @@ export function ImportExportModal({ isOpen, onClose }: ImportExportModalProps) {
       const text = await file.text();
       const result = await importFromJson(text);
       setImportResult(result);
+
+      // Refresh environments in the store if any were imported
+      if (result.environmentsImported > 0) {
+        await refreshEnvironments();
+      }
     } catch (err) {
       setImportResult({
         success: false,
         collectionsImported: 0,
         requestsImported: 0,
+        environmentsImported: 0,
         errors: [`Failed to read file: ${err}`],
         warnings: [],
       });
     } finally {
       setImporting(false);
     }
-  }, []);
+  }, [refreshEnvironments]);
 
   // Handle file input change
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,8 +225,15 @@ export function ImportExportModal({ isOpen, onClose }: ImportExportModalProps) {
                   </div>
                   {importResult.success && (
                     <div className="text-sm text-zinc-300">
-                      Imported {importResult.collectionsImported} collection(s) with{" "}
-                      {importResult.requestsImported} request(s)
+                      <div>
+                        Imported {importResult.collectionsImported} collection(s) with{" "}
+                        {importResult.requestsImported} request(s)
+                      </div>
+                      {importResult.environmentsImported > 0 && (
+                        <div className="mt-1">
+                          Imported {importResult.environmentsImported} environment(s)
+                        </div>
+                      )}
                     </div>
                   )}
                   {importResult.errors.length > 0 && (
@@ -288,8 +304,8 @@ export function ImportExportModal({ isOpen, onClose }: ImportExportModalProps) {
               {/* Export Info */}
               <div className="text-xs text-zinc-500">
                 {selectedCollections.size === 0
-                  ? "All collections will be exported"
-                  : `${selectedCollections.size} collection(s) selected`}
+                  ? "All collections and environments will be exported"
+                  : `${selectedCollections.size} collection(s) selected (all environments included)`}
               </div>
 
               {/* Export Button */}

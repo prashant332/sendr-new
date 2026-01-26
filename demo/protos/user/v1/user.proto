@@ -1,0 +1,93 @@
+// User domain model
+// Demonstrates imports from common package and google well-known types
+
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "github.com/example/demo/user/v1";
+
+import "google/protobuf/timestamp.proto";
+import "common/types.proto";
+import "common/enums.proto";
+
+// User represents a user account in the system
+message User {
+  // Unique identifier
+  string id = 1;
+
+  // User's email (unique, used for login)
+  string email = 2;
+
+  // Display name
+  string display_name = 3;
+
+  // Profile information
+  UserProfile profile = 4;
+
+  // Account status
+  common.Status status = 5;
+
+  // Account timestamps
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  google.protobuf.Timestamp last_login_at = 8;
+
+  // User roles
+  repeated Role roles = 9;
+
+  // Custom metadata
+  common.Metadata metadata = 10;
+}
+
+// UserProfile contains user's personal information
+message UserProfile {
+  string first_name = 1;
+  string last_name = 2;
+  string avatar_url = 3;
+  string bio = 4;
+  string timezone = 5;  // IANA timezone (e.g., "America/New_York")
+  string locale = 6;    // BCP 47 language tag (e.g., "en-US")
+
+  // Contact information
+  repeated common.PhoneNumber phone_numbers = 7;
+  common.Address primary_address = 8;
+  common.Address billing_address = 9;
+
+  // Date of birth (optional)
+  Date date_of_birth = 10;
+}
+
+// Date represents a calendar date (no time component)
+message Date {
+  int32 year = 1;   // Year (e.g., 2024)
+  int32 month = 2;  // Month (1-12)
+  int32 day = 3;    // Day (1-31)
+}
+
+// Role represents a user's role in the system
+message Role {
+  string id = 1;
+  string name = 2;
+  repeated string permissions = 3;
+}
+
+// UserPreferences for notification and display settings
+message UserPreferences {
+  bool email_notifications = 1;
+  bool sms_notifications = 2;
+  bool push_notifications = 3;
+
+  // Theme preference
+  Theme theme = 4;
+
+  enum Theme {
+    THEME_UNSPECIFIED = 0;
+    THEME_LIGHT = 1;
+    THEME_DARK = 2;
+    THEME_SYSTEM = 3;
+  }
+
+  // Preferred currency for displaying prices
+  common.Currency preferred_currency = 5;
+}

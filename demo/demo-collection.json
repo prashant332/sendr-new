@@ -1,0 +1,772 @@
+{
+  "version": "1.0",
+  "exportedAt": "2024-01-15T00:00:00.000Z",
+  "collections": [
+    {
+      "name": "1. Basic Requests",
+      "requests": [
+        {
+          "name": "GET - List Users",
+          "method": "GET",
+          "url": "{{baseUrl}}/users",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Returns array of users\", () => {\n  const data = pm.response.json();\n  pm.expect(data).to.be.an(\"array\");\n  pm.expect(data.length).to.be.greaterThan(0);\n});\n\npm.test(\"Users have required fields\", () => {\n  const users = pm.response.json();\n  pm.expect(users[0]).to.have.property(\"id\");\n  pm.expect(users[0]).to.have.property(\"name\");\n  pm.expect(users[0]).to.have.property(\"email\");\n});"
+        },
+        {
+          "name": "GET - Single User",
+          "method": "GET",
+          "url": "{{baseUrl}}/users/{{userId}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Returns user object\", () => {\n  const user = pm.response.json();\n  pm.expect(user).to.have.property(\"id\");\n  pm.expect(user).to.have.property(\"name\");\n  pm.expect(user).to.have.property(\"email\");\n});\n\npm.test(\"User has address and company\", () => {\n  const user = pm.response.json();\n  pm.expect(user).to.have.property(\"address\");\n  pm.expect(user).to.have.property(\"company\");\n});"
+        },
+        {
+          "name": "POST - Create User",
+          "method": "POST",
+          "url": "{{baseUrl}}/users",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"name\": \"John Doe\",\n  \"username\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"1-234-567-8900\",\n  \"website\": \"johndoe.com\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 201\", () => {\n  pm.expect(pm.response.status).to.equal(201);\n});\n\npm.test(\"Returns created user with ID\", () => {\n  const user = pm.response.json();\n  pm.expect(user).to.have.property(\"id\");\n  pm.environment.set(\"createdUserId\", String(user.id));\n  console.log(\"Created user ID:\", user.id);\n});\n\npm.test(\"Created user has correct data\", () => {\n  const user = pm.response.json();\n  pm.expect(user.name).to.equal(\"John Doe\");\n  pm.expect(user.email).to.equal(\"john@example.com\");\n});"
+        },
+        {
+          "name": "PUT - Update User",
+          "method": "PUT",
+          "url": "{{baseUrl}}/users/{{userId}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"id\": {{userId}},\n  \"name\": \"Jane Doe Updated\",\n  \"username\": \"janedoe\",\n  \"email\": \"jane.updated@example.com\",\n  \"phone\": \"1-234-567-8901\",\n  \"website\": \"janedoe.com\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"User data is updated\", () => {\n  const user = pm.response.json();\n  pm.expect(user.name).to.equal(\"Jane Doe Updated\");\n  console.log(\"User updated successfully\");\n});"
+        },
+        {
+          "name": "PATCH - Partial Update",
+          "method": "PATCH",
+          "url": "{{baseUrl}}/users/{{userId}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"email\": \"patched@example.com\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Email is patched\", () => {\n  const user = pm.response.json();\n  pm.expect(user.email).to.equal(\"patched@example.com\");\n});"
+        },
+        {
+          "name": "DELETE - Delete User",
+          "method": "DELETE",
+          "url": "{{baseUrl}}/users/{{userId}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Response is empty object (deleted)\", () => {\n  const data = pm.response.json();\n  pm.expect(Object.keys(data).length).to.equal(0);\n  console.log(\"User deleted successfully\");\n});"
+        }
+      ]
+    },
+    {
+      "name": "2. Body Types",
+      "requests": [
+        {
+          "name": "JSON Body",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"message\": \"Hello from Sendr\",\n  \"timestamp\": \"2024-01-15T10:30:00Z\",\n  \"nested\": {\n    \"key\": \"value\",\n    \"number\": 42\n  },\n  \"tags\": [\"api\", \"testing\", \"demo\"]\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Echo returns JSON body\", () => {\n  const data = pm.response.json();\n  pm.expect(data.json.message).to.equal(\"Hello from Sendr\");\n  pm.expect(data.json.nested.key).to.equal(\"value\");\n});\n\npm.test(\"Content-Type is application/json\", () => {\n  const data = pm.response.json();\n  pm.expect(data.headers[\"Content-Type\"]).to.include(\"application/json\");\n});"
+        },
+        {
+          "name": "Form Data (Multipart)",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "form-data",
+            "raw": "",
+            "formData": [
+              { "key": "field1", "value": "value1", "active": true },
+              { "key": "field2", "value": "value2", "active": true },
+              { "key": "description", "value": "This is a test form submission from Sendr", "active": true },
+              { "key": "inactive_field", "value": "this should not be sent", "active": false }
+            ]
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Echo returns form data\", () => {\n  const data = pm.response.json();\n  pm.expect(data.form.field1).to.equal(\"value1\");\n  pm.expect(data.form.field2).to.equal(\"value2\");\n});\n\npm.test(\"Inactive field not sent\", () => {\n  const data = pm.response.json();\n  pm.expect(data.form).to.not.have.property(\"inactive_field\");\n});"
+        },
+        {
+          "name": "URL Encoded Form",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "x-www-form-urlencoded",
+            "raw": "",
+            "formData": [
+              { "key": "username", "value": "{{testUser}}", "active": true },
+              { "key": "password", "value": "{{testPass}}", "active": true },
+              { "key": "remember", "value": "true", "active": true }
+            ]
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Echo returns form data with variables\", () => {\n  const data = pm.response.json();\n  pm.expect(data.form).to.have.property(\"username\");\n  pm.expect(data.form).to.have.property(\"password\");\n  pm.expect(data.form.remember).to.equal(\"true\");\n});\n\npm.test(\"Content-Type is form-urlencoded\", () => {\n  const data = pm.response.json();\n  pm.expect(data.headers[\"Content-Type\"]).to.include(\"application/x-www-form-urlencoded\");\n});"
+        },
+        {
+          "name": "XML Body",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [
+            { "key": "Content-Type", "value": "application/xml", "active": true }
+          ],
+          "params": [],
+          "body": {
+            "mode": "xml",
+            "raw": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<request>\n  <user>\n    <name>John Doe</name>\n    <email>john@example.com</email>\n    <role>admin</role>\n  </user>\n  <metadata>\n    <source>Sendr</source>\n    <version>1.0</version>\n  </metadata>\n</request>",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"XML body sent correctly\", () => {\n  const data = pm.response.json();\n  pm.expect(data.data).to.include(\"<name>John Doe</name>\");\n  pm.expect(data.data).to.include(\"<source>Sendr</source>\");\n});\n\npm.test(\"Content-Type is XML\", () => {\n  const data = pm.response.json();\n  pm.expect(data.headers[\"Content-Type\"]).to.include(\"application/xml\");\n});"
+        },
+        {
+          "name": "Raw Text Body",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [
+            { "key": "Content-Type", "value": "text/plain", "active": true }
+          ],
+          "params": [],
+          "body": {
+            "mode": "raw",
+            "raw": "This is plain text content.\nIt can span multiple lines.\n\nLine 4 after empty line.\nSendr supports raw text bodies for any content type.",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Echo returns text body\", () => {\n  const data = pm.response.json();\n  pm.expect(data.data).to.include(\"plain text\");\n  pm.expect(data.data).to.include(\"multiple lines\");\n});\n\npm.test(\"Content-Type is text/plain\", () => {\n  const data = pm.response.json();\n  pm.expect(data.headers[\"Content-Type\"]).to.include(\"text/plain\");\n});"
+        }
+      ]
+    },
+    {
+      "name": "3. Authentication",
+      "requests": [
+        {
+          "name": "Bearer Token Auth",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/bearer",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "bearer",
+            "bearer": { "token": "{{testToken}}", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Auth successful\", () => {\n  const data = pm.response.json();\n  pm.expect(data.authenticated).to.be.true;\n});\n\npm.test(\"Token matches\", () => {\n  const data = pm.response.json();\n  pm.expect(data.token).to.equal(\"demo-token-12345\");\n  console.log(\"Bearer auth verified with token:\", data.token);\n});"
+        },
+        {
+          "name": "Basic Auth",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/basic-auth/{{testUser}}/{{testPass}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "basic",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "{{testUser}}", "password": "{{testPass}}", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Basic auth successful\", () => {\n  const data = pm.response.json();\n  pm.expect(data.authenticated).to.be.true;\n  pm.expect(data.user).to.equal(\"testuser\");\n});\n\nconsole.log(\"Basic auth verified for user: testuser\");"
+        },
+        {
+          "name": "API Key (Header)",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/headers",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "apikey",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "X-API-Key", "value": "{{apiKey}}", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"API key sent in header\", () => {\n  const data = pm.response.json();\n  // HTTPBin normalizes header names\n  const apiKeyHeader = data.headers[\"X-Api-Key\"] || data.headers[\"x-api-key\"];\n  pm.expect(apiKeyHeader).to.equal(\"demo-api-key-xyz\");\n  console.log(\"API Key header verified:\", apiKeyHeader);\n});"
+        },
+        {
+          "name": "API Key (Query)",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/get",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "apikey",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "api_key", "value": "{{apiKey}}", "addTo": "query" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"API key sent in query string\", () => {\n  const data = pm.response.json();\n  pm.expect(data.args.api_key).to.equal(\"demo-api-key-xyz\");\n  console.log(\"API Key in query verified:\", data.args.api_key);\n});\n\npm.test(\"URL contains api_key parameter\", () => {\n  const data = pm.response.json();\n  pm.expect(data.url).to.include(\"api_key=\");\n});"
+        },
+        {
+          "name": "Custom Auth Header",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/headers",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "bearer",
+            "bearer": { "token": "{{testToken}}", "headerKey": "X-Auth-Token", "prefix": "Token" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Custom auth header sent\", () => {\n  const data = pm.response.json();\n  const authHeader = data.headers[\"X-Auth-Token\"] || data.headers[\"x-auth-token\"];\n  pm.expect(authHeader).to.include(\"Token\");\n  pm.expect(authHeader).to.include(\"demo-token-12345\");\n  console.log(\"Custom auth header:\", authHeader);\n});"
+        }
+      ]
+    },
+    {
+      "name": "4. Variables & Scripting",
+      "requests": [
+        {
+          "name": "Set Variables (Pre-request)",
+          "method": "GET",
+          "url": "{{baseUrl}}/posts/1",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "// Set dynamic variables before request\nconst requestTime = new Date().toISOString();\npm.environment.set(\"requestTime\", requestTime);\n\nconst randomId = String(Math.floor(Math.random() * 100));\npm.environment.set(\"randomId\", randomId);\n\nconsole.log(\"Pre-request: Variables set\");\nconsole.log(\"  requestTime:\", requestTime);\nconsole.log(\"  randomId:\", randomId);",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Can read variables set in pre-request\", () => {\n  const requestTime = pm.environment.get(\"requestTime\");\n  const randomId = pm.environment.get(\"randomId\");\n  \n  pm.expect(requestTime).to.be.a(\"string\");\n  pm.expect(requestTime.length).to.be.greaterThan(0);\n  \n  console.log(\"Test: Reading pre-request variables\");\n  console.log(\"  requestTime:\", requestTime);\n  console.log(\"  randomId:\", randomId);\n});"
+        },
+        {
+          "name": "Use Variables in URL",
+          "method": "GET",
+          "url": "{{baseUrl}}/posts/{{postId}}/comments",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Returns comments array\", () => {\n  const data = pm.response.json();\n  pm.expect(data).to.be.an(\"array\");\n  pm.expect(data.length).to.be.greaterThan(0);\n});\n\npm.test(\"Comments belong to correct post\", () => {\n  const data = pm.response.json();\n  const expectedPostId = parseInt(pm.environment.get(\"postId\") || \"1\");\n  data.forEach(comment => {\n    pm.expect(comment.postId).to.equal(expectedPostId);\n  });\n});"
+        },
+        {
+          "name": "Use Variables in Headers",
+          "method": "GET",
+          "url": "{{httpBinUrl}}/headers",
+          "headers": [
+            { "key": "X-Custom-Header", "value": "{{testToken}}", "active": true },
+            { "key": "X-Request-Id", "value": "request-{{userId}}-{{postId}}", "active": true },
+            { "key": "X-Timestamp", "value": "{{requestTime}}", "active": true }
+          ],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Custom headers sent with variables\", () => {\n  const data = pm.response.json();\n  const customHeader = data.headers[\"X-Custom-Header\"] || data.headers[\"x-custom-header\"];\n  pm.expect(customHeader).to.include(\"demo-token\");\n});\n\npm.test(\"Request ID header interpolated\", () => {\n  const data = pm.response.json();\n  const requestId = data.headers[\"X-Request-Id\"] || data.headers[\"x-request-id\"];\n  pm.expect(requestId).to.include(\"request-\");\n  console.log(\"Request ID:\", requestId);\n});"
+        },
+        {
+          "name": "Chain Variables (Create)",
+          "method": "POST",
+          "url": "{{baseUrl}}/posts",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"title\": \"Test Post from Sendr\",\n  \"body\": \"This post was created to test variable chaining\",\n  \"userId\": {{userId}}\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 201\", () => {\n  pm.expect(pm.response.status).to.equal(201);\n});\n\npm.test(\"Extract and save post ID for chaining\", () => {\n  const post = pm.response.json();\n  pm.expect(post).to.have.property(\"id\");\n  \n  // Save for next request\n  pm.environment.set(\"chainedPostId\", String(post.id));\n  console.log(\"Saved chainedPostId:\", post.id);\n  console.log(\"This ID can be used in subsequent requests!\");\n});"
+        },
+        {
+          "name": "Chain Variables (Use)",
+          "method": "GET",
+          "url": "{{baseUrl}}/posts/{{chainedPostId}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "const chainedId = pm.environment.get(\"chainedPostId\");\nconsole.log(\"Using chainedPostId from previous request:\", chainedId);",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Retrieved correct post\", () => {\n  const post = pm.response.json();\n  const expectedId = parseInt(pm.environment.get(\"chainedPostId\") || \"101\");\n  pm.expect(post.id).to.equal(expectedId);\n  console.log(\"Successfully retrieved post with chained ID:\", post.id);\n});"
+        },
+        {
+          "name": "Use Variables in Body",
+          "method": "POST",
+          "url": "{{httpBinUrl}}/post",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"postId\": \"{{postId}}\",\n  \"token\": \"{{testToken}}\",\n  \"timestamp\": \"{{requestTime}}\",\n  \"message\": \"Request from user {{userId}} for post {{postId}}\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "pm.test(\"Status is 200\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Body variables interpolated\", () => {\n  const data = pm.response.json();\n  pm.expect(data.json.userId).to.equal(\"1\");\n  pm.expect(data.json.postId).to.equal(\"1\");\n  pm.expect(data.json.token).to.include(\"demo-token\");\n  console.log(\"Body received:\", JSON.stringify(data.json, null, 2));\n});"
+        }
+      ]
+    },
+    {
+      "name": "5. Response Visualizer",
+      "requests": [
+        {
+          "name": "Table View - Users",
+          "method": "GET",
+          "url": "{{baseUrl}}/users",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// Table View Demo: Returns array of user objects\n// Best viewed in Rendered tab with Table view\n\npm.test(\"Returns users for table view\", () => {\n  const users = pm.response.json();\n  pm.expect(users).to.be.an(\"array\");\n  pm.expect(users.length).to.equal(10);\n});\n\npm.test(\"Users have tabular data\", () => {\n  const users = pm.response.json();\n  const user = users[0];\n  pm.expect(user).to.have.property(\"id\");\n  pm.expect(user).to.have.property(\"name\");\n  pm.expect(user).to.have.property(\"email\");\n  pm.expect(user).to.have.property(\"phone\");\n  pm.expect(user).to.have.property(\"website\");\n});\n\nconsole.log(\"TIP: View this response in the Rendered tab\");\nconsole.log(\"Select 'Table' view to see users as a sortable table\");"
+        },
+        {
+          "name": "Cards View - Posts",
+          "method": "GET",
+          "url": "{{baseUrl}}/posts",
+          "headers": [],
+          "params": [
+            { "key": "_limit", "value": "6", "active": true }
+          ],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// Cards View Demo: Returns posts with title/body\n// Best viewed in Rendered tab with Cards view\n\npm.test(\"Returns posts for cards view\", () => {\n  const posts = pm.response.json();\n  pm.expect(posts).to.be.an(\"array\");\n  pm.expect(posts.length).to.equal(6);\n});\n\npm.test(\"Posts have title and body for cards\", () => {\n  const posts = pm.response.json();\n  const post = posts[0];\n  pm.expect(post).to.have.property(\"title\");\n  pm.expect(post).to.have.property(\"body\");\n  pm.expect(post.title.length).to.be.greaterThan(0);\n});\n\nconsole.log(\"TIP: View this response in the Rendered tab\");\nconsole.log(\"Select 'Cards' view with title as card title\");\nconsole.log(\"and body as subtitle for a nice card layout\");"
+        },
+        {
+          "name": "List View - Dog Breeds",
+          "method": "GET",
+          "url": "{{dogApiUrl}}/breeds/list/all",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// List View Demo: Returns object with breed data\n// Set root path to 'message' to see breeds object\n\npm.test(\"Returns breed data\", () => {\n  const data = pm.response.json();\n  pm.expect(data).to.have.property(\"message\");\n  pm.expect(data.status).to.equal(\"success\");\n});\n\npm.test(\"Contains multiple breeds\", () => {\n  const data = pm.response.json();\n  const breeds = Object.keys(data.message);\n  pm.expect(breeds.length).to.be.greaterThan(50);\n  console.log(\"Total breeds:\", breeds.length);\n});\n\nconsole.log(\"TIP: In Rendered tab, set root path to 'message'\");\nconsole.log(\"to see the breeds object in Key-Value view\");"
+        },
+        {
+          "name": "Key-Value View - User Details",
+          "method": "GET",
+          "url": "{{baseUrl}}/users/1",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// Key-Value View Demo: Returns single user object\n// Best viewed in Rendered tab with Key-Value view\n\npm.test(\"Returns single user object\", () => {\n  const user = pm.response.json();\n  pm.expect(user).to.be.an(\"object\");\n  pm.expect(user.id).to.equal(1);\n});\n\npm.test(\"User has all expected fields\", () => {\n  const user = pm.response.json();\n  pm.expect(user).to.have.property(\"name\");\n  pm.expect(user).to.have.property(\"email\");\n  pm.expect(user).to.have.property(\"address\");\n  pm.expect(user).to.have.property(\"company\");\n});\n\nconsole.log(\"TIP: View in Rendered tab with Key-Value view\");\nconsole.log(\"to see all user properties in a property table\");"
+        },
+        {
+          "name": "Images - Random Dog",
+          "method": "GET",
+          "url": "{{dogApiUrl}}/breeds/image/random/3",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// Image URLs Demo: Returns array of dog image URLs\n// Visualizer can detect and display image URLs\n\npm.test(\"Returns image URLs\", () => {\n  const data = pm.response.json();\n  pm.expect(data.message).to.be.an(\"array\");\n  pm.expect(data.message.length).to.equal(3);\n});\n\npm.test(\"URLs are valid image links\", () => {\n  const data = pm.response.json();\n  data.message.forEach(url => {\n    pm.expect(url).to.include(\"https://\");\n    pm.expect(url).to.match(/\\.(jpg|jpeg|png)$/i);\n  });\n});\n\nconsole.log(\"TIP: Set root path to 'message' in Rendered tab\");\nconsole.log(\"URLs will be clickable and images may preview\");"
+        }
+      ]
+    },
+    {
+      "name": "6. Workflow Demo",
+      "requests": [
+        {
+          "name": "Step 1: Create Post",
+          "method": "POST",
+          "url": "{{baseUrl}}/posts",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"title\": \"Workflow Demo Post\",\n  \"body\": \"Created by Sendr workflow runner - step 1 of 4\",\n  \"userId\": 1\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== WORKFLOW STEP 1: CREATE ===\");\nconsole.log(\"Creating a new post...\");",
+          "testScript": "pm.test(\"Step 1: Post created\", () => {\n  pm.expect(pm.response.status).to.equal(201);\n});\n\npm.test(\"Step 1: Save post ID for workflow\", () => {\n  const data = pm.response.json();\n  pm.expect(data).to.have.property(\"id\");\n  \n  pm.environment.set(\"workflowPostId\", String(data.id));\n  pm.environment.set(\"workflowStartTime\", new Date().toISOString());\n  \n  console.log(\"Created post ID:\", data.id);\n  console.log(\"Saved to workflowPostId for next steps\");\n});"
+        },
+        {
+          "name": "Step 2: Get Post",
+          "method": "GET",
+          "url": "{{baseUrl}}/posts/{{workflowPostId}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== WORKFLOW STEP 2: READ ===\");\nconsole.log(\"Retrieving post with ID:\", pm.environment.get(\"workflowPostId\"));",
+          "testScript": "pm.test(\"Step 2: Post retrieved\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Step 2: Verify post data\", () => {\n  const post = pm.response.json();\n  pm.expect(post.title).to.include(\"Workflow\");\n  \n  // Save original title for comparison in step 3\n  pm.environment.set(\"originalTitle\", post.title);\n  console.log(\"Retrieved post title:\", post.title);\n});"
+        },
+        {
+          "name": "Step 3: Update Post",
+          "method": "PUT",
+          "url": "{{baseUrl}}/posts/{{workflowPostId}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"id\": {{workflowPostId}},\n  \"title\": \"Updated Workflow Post\",\n  \"body\": \"Modified by Sendr workflow runner - step 3 of 4\",\n  \"userId\": 1\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== WORKFLOW STEP 3: UPDATE ===\");\nconsole.log(\"Updating post:\", pm.environment.get(\"workflowPostId\"));\nconsole.log(\"Original title was:\", pm.environment.get(\"originalTitle\"));",
+          "testScript": "pm.test(\"Step 3: Post updated\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Step 3: Verify update\", () => {\n  const post = pm.response.json();\n  pm.expect(post.title).to.include(\"Updated\");\n  console.log(\"Post successfully updated to:\", post.title);\n});"
+        },
+        {
+          "name": "Step 4: Delete Post",
+          "method": "DELETE",
+          "url": "{{baseUrl}}/posts/{{workflowPostId}}",
+          "headers": [],
+          "params": [],
+          "body": { "mode": "none", "raw": "", "formData": [] },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== WORKFLOW STEP 4: DELETE ===\");\nconsole.log(\"Deleting post:\", pm.environment.get(\"workflowPostId\"));",
+          "testScript": "pm.test(\"Step 4: Post deleted\", () => {\n  pm.expect(pm.response.status).to.equal(200);\n});\n\npm.test(\"Step 4: Workflow complete\", () => {\n  const startTime = pm.environment.get(\"workflowStartTime\");\n  const endTime = new Date().toISOString();\n  \n  console.log(\"=== WORKFLOW COMPLETE ===\");\n  console.log(\"Started:\", startTime);\n  console.log(\"Ended:\", endTime);\n  console.log(\"All 4 steps executed successfully!\");\n  console.log(\"  1. CREATE - Post created\");\n  console.log(\"  2. READ - Post retrieved\");\n  console.log(\"  3. UPDATE - Post modified\");\n  console.log(\"  4. DELETE - Post removed\");\n});"
+        }
+      ]
+    },
+    {
+      "name": "7. gRPC Demo",
+      "requests": [
+        {
+          "name": "CreateUser (Unary)",
+          "method": "GRPC",
+          "url": "{{grpcServer}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"securepass123\",\n  \"display_name\": \"New User\",\n  \"profile\": {\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"bio\": \"Software developer\",\n    \"timezone\": \"America/New_York\",\n    \"locale\": \"en-US\"\n  },\n  \"role_ids\": [\"user\", \"editor\"]\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== gRPC CreateUser ===\");\nconsole.log(\"Creating a new user via gRPC...\");",
+          "testScript": "// gRPC CreateUser test\npm.test(\"gRPC status is OK\", () => {\n  pm.expect(pm.response.status.code).to.equal(0);\n});\n\npm.test(\"User created with ID\", () => {\n  const data = pm.response.json();\n  pm.expect(data.user).to.have.property(\"id\");\n  pm.environment.set(\"grpcUserId\", data.user.id);\n  console.log(\"Created user ID:\", data.user.id);\n});",
+          "grpcConfig": {
+            "protoSchemaId": "",
+            "service": "user.v1.UserService",
+            "method": "CreateUser",
+            "useTls": false,
+            "insecure": true,
+            "timeout": 30000,
+            "metadata": [
+              { "key": "x-request-id", "value": "{{requestId}}", "active": true }
+            ]
+          }
+        },
+        {
+          "name": "GetUser (Unary)",
+          "method": "GRPC",
+          "url": "{{grpcServer}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"user_id\": \"{{grpcUserId}}\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "bearer",
+            "bearer": { "token": "{{testToken}}", "headerKey": "authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "console.log(\"=== gRPC GetUser ===\");\nconsole.log(\"Fetching user:\", pm.environment.get(\"grpcUserId\"));",
+          "testScript": "// gRPC GetUser test\npm.test(\"gRPC status is OK\", () => {\n  pm.expect(pm.response.status.code).to.equal(0);\n});\n\npm.test(\"User data returned\", () => {\n  const data = pm.response.json();\n  pm.expect(data.user).to.have.property(\"email\");\n  pm.expect(data.user).to.have.property(\"display_name\");\n  console.log(\"User:\", data.user.display_name);\n});\n\npm.test(\"Check metadata\", () => {\n  const metadata = pm.response.metadata();\n  console.log(\"Response metadata:\", JSON.stringify(metadata));\n});",
+          "grpcConfig": {
+            "protoSchemaId": "",
+            "service": "user.v1.UserService",
+            "method": "GetUser",
+            "useTls": false,
+            "insecure": true,
+            "timeout": 30000,
+            "metadata": []
+          }
+        },
+        {
+          "name": "ListUsers (Unary)",
+          "method": "GRPC",
+          "url": "{{grpcServer}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"pagination\": {\n    \"page_size\": 10,\n    \"page_token\": \"\"\n  },\n  \"filter\": {\n    \"statuses\": [1, 3]\n  },\n  \"sort\": {\n    \"field\": 1,\n    \"order\": 2\n  }\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// gRPC ListUsers test\npm.test(\"gRPC status is OK\", () => {\n  pm.expect(pm.response.status.code).to.equal(0);\n});\n\npm.test(\"Returns users array\", () => {\n  const data = pm.response.json();\n  pm.expect(data.users).to.be.an(\"array\");\n  console.log(\"Total users:\", data.users.length);\n});\n\npm.test(\"Pagination info present\", () => {\n  const data = pm.response.json();\n  pm.expect(data.pagination).to.have.property(\"total_count\");\n});",
+          "grpcConfig": {
+            "protoSchemaId": "",
+            "service": "user.v1.UserService",
+            "method": "ListUsers",
+            "useTls": false,
+            "insecure": true,
+            "timeout": 30000,
+            "metadata": []
+          }
+        },
+        {
+          "name": "CreateOrder (Complex)",
+          "method": "GRPC",
+          "url": "{{grpcServer}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"customer_id\": \"{{grpcUserId}}\",\n  \"items\": [\n    {\n      \"product_id\": \"prod-001\",\n      \"variant_id\": \"var-red-large\",\n      \"quantity\": 2\n    },\n    {\n      \"product_id\": \"prod-002\",\n      \"variant_id\": \"var-default\",\n      \"quantity\": 1\n    }\n  ],\n  \"shipping_address\": {\n    \"street_line_1\": \"123 Main Street\",\n    \"street_line_2\": \"Apt 4B\",\n    \"city\": \"New York\",\n    \"state\": \"NY\",\n    \"postal_code\": \"10001\",\n    \"country_code\": \"US\"\n  },\n  \"shipping_method_id\": \"express\",\n  \"promo_codes\": [\"SAVE10\"],\n  \"customer_note\": \"Please leave at door\",\n  \"idempotency_key\": \"order-{{requestTime}}\"\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "bearer",
+            "bearer": { "token": "{{testToken}}", "headerKey": "authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "pm.environment.set(\"requestTime\", new Date().getTime().toString());\nconsole.log(\"=== gRPC CreateOrder ===\");\nconsole.log(\"Creating order for customer:\", pm.environment.get(\"grpcUserId\"));",
+          "testScript": "// gRPC CreateOrder test\npm.test(\"gRPC status is OK\", () => {\n  pm.expect(pm.response.status.code).to.equal(0);\n});\n\npm.test(\"Order created with details\", () => {\n  const data = pm.response.json();\n  pm.expect(data.order).to.have.property(\"id\");\n  pm.expect(data.order).to.have.property(\"order_number\");\n  pm.environment.set(\"grpcOrderId\", data.order.id);\n  console.log(\"Order ID:\", data.order.id);\n  console.log(\"Order Number:\", data.order.order_number);\n});\n\npm.test(\"Check for warnings\", () => {\n  const data = pm.response.json();\n  if (data.warnings && data.warnings.length > 0) {\n    console.log(\"Warnings:\", data.warnings);\n  }\n});",
+          "grpcConfig": {
+            "protoSchemaId": "",
+            "service": "order.v1.OrderService",
+            "method": "CreateOrder",
+            "useTls": false,
+            "insecure": true,
+            "timeout": 30000,
+            "metadata": [
+              { "key": "x-idempotency-key", "value": "order-{{requestTime}}", "active": true }
+            ]
+          }
+        },
+        {
+          "name": "GetOrderStats",
+          "method": "GRPC",
+          "url": "{{grpcServer}}",
+          "headers": [],
+          "params": [],
+          "body": {
+            "mode": "json",
+            "raw": "{\n  \"customer_id\": \"{{grpcUserId}}\",\n  \"granularity\": 2\n}",
+            "formData": []
+          },
+          "auth": {
+            "type": "none",
+            "bearer": { "token": "", "headerKey": "Authorization", "prefix": "Bearer" },
+            "basic": { "username": "", "password": "", "headerKey": "Authorization" },
+            "apikey": { "key": "", "value": "", "addTo": "header" }
+          },
+          "preRequestScript": "",
+          "testScript": "// gRPC GetOrderStats test\npm.test(\"gRPC status is OK\", () => {\n  pm.expect(pm.response.status.code).to.equal(0);\n});\n\npm.test(\"Stats returned\", () => {\n  const data = pm.response.json();\n  pm.expect(data).to.have.property(\"total_orders\");\n  pm.expect(data).to.have.property(\"total_revenue\");\n  console.log(\"Total orders:\", data.total_orders);\n  console.log(\"Total revenue:\", JSON.stringify(data.total_revenue));\n});",
+          "grpcConfig": {
+            "protoSchemaId": "",
+            "service": "order.v1.OrderService",
+            "method": "GetOrderStats",
+            "useTls": false,
+            "insecure": true,
+            "timeout": 30000,
+            "metadata": []
+          }
+        }
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "name": "Demo Environment",
+      "variables": {
+        "baseUrl": "https://jsonplaceholder.typicode.com",
+        "httpBinUrl": "https://httpbin.org",
+        "reqResUrl": "https://reqres.in/api",
+        "dogApiUrl": "https://dog.ceo/api",
+        "testToken": "demo-token-12345",
+        "testUser": "testuser",
+        "testPass": "testpass123",
+        "apiKey": "demo-api-key-xyz",
+        "userId": "1",
+        "postId": "1",
+        "grpcServer": "localhost:50051",
+        "requestId": "req-001"
+      }
+    }
+  ]
+}

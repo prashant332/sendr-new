@@ -16,6 +16,12 @@ export interface SendrExportFormat {
   version: "1.0";
   exportedAt: string;
   collections: SendrExportCollection[];
+  environments?: SendrExportEnvironment[];
+}
+
+export interface SendrExportEnvironment {
+  name: string;
+  variables: Record<string, string>;
 }
 
 export interface SendrExportCollection {
@@ -119,10 +125,30 @@ interface PostmanEvent {
 // Export Functions
 // ============================================================================
 
+export interface ExportOptions {
+  collectionIds?: string[];
+  environmentIds?: string[];
+  includeEnvironments?: boolean;
+}
+
 /**
- * Export all collections or specific collections to Sendr JSON format
+ * Export collections and environments to Sendr JSON format
  */
-export async function exportToJson(collectionIds?: string[]): Promise<SendrExportFormat> {
+export async function exportToJson(options?: ExportOptions | string[]): Promise<SendrExportFormat> {
+  // Handle legacy API: exportToJson(collectionIds?: string[])
+  let collectionIds: string[] | undefined;
+  let environmentIds: string[] | undefined;
+  let includeEnvironments = true;
+
+  if (Array.isArray(options)) {
+    // Legacy: passed array of collection IDs
+    collectionIds = options.length > 0 ? options : undefined;
+  } else if (options) {
+    collectionIds = options.collectionIds;
+    environmentIds = options.environmentIds;
+    includeEnvironments = options.includeEnvironments !== false;
+  }
+
   let collections: Collection[];
 
   if (collectionIds && collectionIds.length > 0) {
@@ -163,6 +189,26 @@ export async function exportToJson(collectionIds?: string[]): Promise<SendrExpor
     });
   }
 
+  // Export environments
+  if (includeEnvironments) {
+    let environments;
+    if (environmentIds && environmentIds.length > 0) {
+      environments = await db.environments
+        .where("id")
+        .anyOf(environmentIds)
+        .toArray();
+    } else {
+      environments = await db.environments.toArray();
+    }
+
+    if (environments.length > 0) {
+      exportData.environments = environments.map((env) => ({
+        name: env.name,
+        variables: env.variables,
+      }));
+    }
+  }
+
   return exportData;
 }
 
@@ -191,6 +237,7 @@ export interface ImportResult {
   success: boolean;
   collectionsImported: number;
   requestsImported: number;
+  environmentsImported: number;
   errors: string[];
   warnings: string[];
 }
@@ -203,6 +250,7 @@ export async function importFromSendrJson(data: SendrExportFormat): Promise<Impo
     success: true,
     collectionsImported: 0,
     requestsImported: 0,
+    environmentsImported: 0,
     errors: [],
     warnings: [],
   };
@@ -211,7 +259,9 @@ export async function importFromSendrJson(data: SendrExportFormat): Promise<Impo
     result.warnings.push(`Unknown version "${data.version}", attempting import anyway`);
   }
 
-  for (const collection of data.collections) {
+  // Import collections
+  const collections = data.collections || [];
+  for (const collection of collections) {
     try {
       const collectionId = generateUUID();
       await db.collections.add({
@@ -248,6 +298,22 @@ export async function importFromSendrJson(data: SendrExportFormat): Promise<Impo
     }
   }
 
+  // Import environments
+  if (data.environments && data.environments.length > 0) {
+    for (const env of data.environments) {
+      try {
+        await db.environments.add({
+          id: generateUUID(),
+          name: env.name,
+          variables: env.variables || {},
+        });
+        result.environmentsImported++;
+      } catch (err) {
+        result.errors.push(`Failed to import environment "${env.name}": ${err}`);
+      }
+    }
+  }
+
   return result;
 }
 
@@ -259,6 +325,7 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
     success: true,
     collectionsImported: 0,
     requestsImported: 0,
+    environmentsImported: 0,
     errors: [],
     warnings: [],
   };
@@ -304,6 +371,7 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
           variables: envVariables,
         });
         environmentCreated = true;
+        result.environmentsImported++;
       } catch (err) {
         result.warnings.push(`Failed to import collection variables as environment: ${err}`);
       }
@@ -681,8 +749,11 @@ export function detectImportFormat(data: unknown): ImportFormat {
 
   const obj = data as Record<string, unknown>;
 
-  // Check for Sendr format
-  if (obj.version && obj.collections && Array.isArray(obj.collections)) {
+  // Check for Sendr format (collections and/or environments)
+  if (obj.version && (
+    (obj.collections && Array.isArray(obj.collections)) ||
+    (obj.environments && Array.isArray(obj.environments))
+  )) {
     return "sendr";
   }
 
@@ -715,6 +786,7 @@ export async function importFromJson(jsonString: string): Promise<ImportResult> 
           success: false,
           collectionsImported: 0,
           requestsImported: 0,
+          environmentsImported: 0,
           errors: ["Unknown file format. Please provide a Sendr or Postman collection."],
           warnings: [],
         };
@@ -724,6 +796,7 @@ export async function importFromJson(jsonString: string): Promise<ImportResult> 
       success: false,
       collectionsImported: 0,
       requestsImported: 0,
+      environmentsImported: 0,
       errors: [`Failed to parse JSON: ${err}`],
       warnings: [],
     };
