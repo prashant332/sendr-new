@@ -75,7 +75,8 @@ Sendr supports gRPC calls using Protocol Buffers for message serialization.
 |---------|---------|----------|
 | protobufjs | Parse .proto files, serialize/deserialize messages | Client + Server |
 | @grpc/grpc-js | Node.js gRPC client for making calls | Server only |
-| @grpc/proto-loader | Dynamic proto loading | Server only |
+
+> **Note:** Proto definitions are parsed directly from strings using `protobufjs`, not from files. The gRPC proxy receives proto content in the request body and builds service definitions dynamically.
 
 ---
 
@@ -319,7 +320,7 @@ gRPC requests are fully supported in the Workflow Runner:
 - [x] Bundle well-known Google proto types
 
 ### Phase 12: gRPC Proxy Implementation ✅
-- [x] Install @grpc/grpc-js and @grpc/proto-loader
+- [x] Install @grpc/grpc-js (protobufjs used for proto parsing)
 - [x] Create `/api/grpc-proxy` endpoint
 - [x] Implement dynamic service/method invocation
 - [x] Handle TLS/insecure connections

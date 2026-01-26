@@ -465,6 +465,17 @@ async function executeGrpcRequest(
     }
   }
 
+  // Gather all proto schemas to include as dependencies
+  const allSchemas = await db.protoSchemas.toArray();
+  const additionalProtos: Record<string, string> = {};
+
+  // Include all other proto schemas as potential dependencies
+  for (const schema of allSchemas) {
+    if (schema.id !== protoSchema.id) {
+      additionalProtos[schema.path] = schema.content;
+    }
+  }
+
   // Make gRPC request
   const startTime = Date.now();
   let statusCode = 0;
@@ -484,6 +495,7 @@ async function executeGrpcRequest(
         service: grpcConfig.service,
         method: grpcConfig.method,
         protoDefinition: protoSchema.content,
+        additionalProtos,
         message,
         metadata,
         options: {

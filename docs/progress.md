@@ -199,6 +199,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 10 | While working with gRPC request, cannot go to Auth or Scripts tab - switches back to gRPC tab instantly | Fixed - Removed activeTab from useEffect dependencies, use ref to track method changes |
 | 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Added resolveAll() call to resolve type references |
 | 12 | Proto parse errors only shown in console, not in UI | Fixed - Added warnings/errors display in GrpcRequestEditor |
+| 13 | Getting error ENOENT: no such file or directory, open 'main.proto' while trying to invoke grpc service | Fixed - Rewrote gRPC proxy to parse proto strings directly with protobufjs |
 
 ### Bug Fix Details
 
@@ -232,6 +233,27 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - This ensures all type references are resolved before generating samples
 - Nested message types now properly generate sample fields recursively
 - Includes depth limit (default: 5) and cycle detection for self-referential messages
+
+#### Bug #13 (gRPC ENOENT 'main.proto' Error)
+
+**Root Cause:** Two issues:
+1. The gRPC proxy was using `@grpc/proto-loader`'s `load("main.proto")` function which tries to read from the filesystem, but proto definitions are passed as strings in the request body
+2. The client was only sending the main proto file, not its dependencies (imported proto files), causing "no such type" errors for types defined in other files
+
+**Fix Applied:**
+
+*Server-side (grpc-proxy):*
+- Replaced `@grpc/proto-loader` with direct `protobufjs` parsing
+- Proto content strings are now parsed directly using `protobuf.parse(content, root, { keepCase: true })`
+- Well-known Google types and additional proto imports are parsed into the same Root
+- Created `createGrpcObject()` function to convert protobufjs Root to gRPC service definitions
+- Created `createServiceClientConstructor()` to build proper gRPC client constructors with serializers/deserializers
+- Uses `grpc.makeGenericClientConstructor()` with the service definitions
+
+*Client-side (page.tsx and workflowRunner.ts):*
+- Added logic to gather all proto schemas from the database
+- All proto files are now sent as `additionalProtos` in the gRPC request
+- This ensures cross-file type references (like `OrderNote`) are resolved correctly
 
 ---
 

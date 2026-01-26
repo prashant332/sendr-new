@@ -73,7 +73,7 @@ npm run lint     # Run ESLint
 | Storage | Dexie.js (IndexedDB wrapper) |
 | Code Editor | @monaco-editor/react |
 | HTTP Client | axios (server-side) |
-| gRPC Client | @grpc/grpc-js, @grpc/proto-loader |
+| gRPC Client | @grpc/grpc-js, protobufjs |
 | Scripting | Function constructor with sandboxed `pm` API |
 
 ---

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as grpc from "@grpc/grpc-js";
-import * as protoLoader from "@grpc/proto-loader";
+import * as protobuf from "protobufjs";
 import { WELL_KNOWN_PROTOS } from "@/lib/grpc/wellKnownProtos";
 
 interface GrpcProxyRequest {
@@ -83,30 +83,52 @@ export async function POST(request: NextRequest) {
 
     const { useTls = false, insecure = false, timeout = 30000 } = options;
 
-    // Note: additionalProtos and WELL_KNOWN_PROTOS are available for future
-    // custom import resolution when proto-loader supports it
-    void additionalProtos;
-    void WELL_KNOWN_PROTOS;
+    // Create a protobufjs Root and parse all proto contents
+    const root = new protobuf.Root();
 
-    // Load the proto definition
-    const packageDefinition = await protoLoader.load("main.proto", {
-      keepCase: true,
-      longs: String,
-      enums: String,
-      defaults: true,
-      oneofs: true,
-      // Custom include resolution
-      includeDirs: [],
-      // Override the file loading
-    });
+    // Add well-known Google types first
+    for (const [path, content] of Object.entries(WELL_KNOWN_PROTOS)) {
+      try {
+        protobuf.parse(content, root, { keepCase: true });
+      } catch (err) {
+        // Well-known types might already exist or have conflicts, ignore
+        console.warn(`Warning parsing well-known type ${path}:`, err);
+      }
+    }
 
-    // Create the gRPC package object
-    const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+    // Parse additional proto files (dependencies) before the main proto
+    for (const [path, content] of Object.entries(additionalProtos)) {
+      try {
+        protobuf.parse(content, root, { keepCase: true });
+      } catch (err) {
+        console.warn(`Warning parsing additional proto ${path}:`, err);
+      }
+    }
+
+    // Parse the main proto definition
+    try {
+      protobuf.parse(protoDefinition, root, { keepCase: true });
+    } catch (err) {
+      return NextResponse.json(
+        { error: `Failed to parse proto definition: ${err instanceof Error ? err.message : String(err)}` },
+        { status: 400 }
+      );
+    }
+
+    // Resolve all type references
+    try {
+      root.resolveAll();
+    } catch (err) {
+      console.warn("Warning resolving proto types:", err);
+    }
+
+    // Create the gRPC service definition from protobufjs
+    const grpcObject = createGrpcObject(root);
 
     // Navigate to the service
     const serviceParts = service.split(".");
     let serviceConstructor: grpc.ServiceClientConstructor | null = null;
-    let current: unknown = protoDescriptor;
+    let current: unknown = grpcObject;
 
     for (const part of serviceParts) {
       if (current && typeof current === "object" && part in current) {
@@ -286,4 +308,101 @@ function metadataToObject(metadata: grpc.Metadata): Record<string, string> {
   }
 
   return result;
+}
+
+/**
+ * Create a gRPC-compatible object from a protobufjs Root
+ * This creates service client constructors that can be used with grpc-js
+ */
+function createGrpcObject(root: protobuf.Root): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  function processNamespace(
+    namespace: protobuf.NamespaceBase,
+    target: Record<string, unknown>
+  ): void {
+    if (!namespace.nested) return;
+
+    for (const [name, nested] of Object.entries(namespace.nested)) {
+      if (nested instanceof protobuf.Service) {
+        // Create a service client constructor
+        target[name] = createServiceClientConstructor(nested);
+      } else if (nested instanceof protobuf.Namespace) {
+        // Recurse into nested namespace
+        const nestedTarget: Record<string, unknown> = {};
+        target[name] = nestedTarget;
+        processNamespace(nested, nestedTarget);
+      }
+    }
+  }
+
+  processNamespace(root, result);
+  return result;
+}
+
+/**
+ * Create a gRPC service client constructor from a protobufjs Service
+ */
+function createServiceClientConstructor(
+  service: protobuf.Service
+): grpc.ServiceClientConstructor {
+  // Build the service definition
+  // Use a mutable record type first, then cast to ServiceDefinition
+  const serviceDef: Record<string, grpc.MethodDefinition<unknown, unknown>> = {};
+
+  for (const method of service.methodsArray) {
+    // Get the request and response types
+    const requestType = service.root.lookupType(method.requestType);
+    const responseType = service.root.lookupType(method.responseType);
+
+    // Create serializers/deserializers for the message types
+    const requestSerialize = (message: unknown): Buffer => {
+      const msg = message as Record<string, unknown>;
+      const errMsg = requestType.verify(msg);
+      if (errMsg) {
+        console.warn(`Request verification warning: ${errMsg}`);
+      }
+      const encoded = requestType.encode(requestType.create(msg)).finish();
+      return Buffer.from(encoded);
+    };
+
+    const requestDeserialize = (buffer: Buffer): unknown => {
+      return requestType.decode(buffer);
+    };
+
+    const responseSerialize = (message: unknown): Buffer => {
+      const msg = message as Record<string, unknown>;
+      const encoded = responseType.encode(responseType.create(msg)).finish();
+      return Buffer.from(encoded);
+    };
+
+    const responseDeserialize = (buffer: Buffer): unknown => {
+      const decoded = responseType.decode(buffer);
+      // Convert to plain object for JSON serialization
+      return responseType.toObject(decoded, {
+        longs: String,
+        enums: String,
+        bytes: String,
+        defaults: true,
+        oneofs: true,
+      });
+    };
+
+    serviceDef[method.name] = {
+      path: `/${service.fullName.replace(/^\./, "")}/${method.name}`,
+      requestStream: method.requestStream || false,
+      responseStream: method.responseStream || false,
+      requestSerialize,
+      requestDeserialize,
+      responseSerialize,
+      responseDeserialize,
+    };
+  }
+
+  // Create the client constructor using grpc-js
+  return grpc.makeGenericClientConstructor(
+    serviceDef as grpc.ServiceDefinition,
+    service.name,
+    {}
+  );
 }

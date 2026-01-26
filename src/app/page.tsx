@@ -19,7 +19,8 @@ import AIScriptAssistant from "@/components/AIScriptAssistant";
 import QuickActions from "@/components/QuickActions";
 import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
 import { GrpcRequestEditor, createDefaultGrpcConfig } from "@/components/GrpcRequestEditor";
-import { useProtoSchema } from "@/hooks/useProtoSchemas";
+import { useProtoSchema, getAllProtoSchemas } from "@/hooks/useProtoSchemas";
+import { ProtoSchema } from "@/lib/db";
 import { VariableContextProvider, VariableInput, VariableInlinePreview } from "@/components/variable-preview";
 import { useEnvironmentStore } from "@/store/environmentStore";
 import { useAIStore } from "@/store/aiStore";
@@ -387,6 +388,41 @@ export default function Home() {
           metadata[key.toLowerCase()] = value;
         }
 
+        // Gather all dependent proto schemas
+        const allSchemas = await getAllProtoSchemas();
+        const additionalProtos: Record<string, string> = {};
+
+        // Helper function to recursively gather dependencies
+        const gatherDependencies = (schema: ProtoSchema, visited: Set<string>) => {
+          if (visited.has(schema.id)) return;
+          visited.add(schema.id);
+
+          // Add this schema's content (using path as key for import resolution)
+          if (schema.id !== selectedProtoSchema.id) {
+            additionalProtos[schema.path] = schema.content;
+          }
+
+          // Recursively gather imports
+          for (const importId of schema.imports || []) {
+            const importedSchema = allSchemas.find(s => s.id === importId);
+            if (importedSchema) {
+              gatherDependencies(importedSchema, visited);
+            }
+          }
+        };
+
+        // Start with the selected schema's dependencies
+        const visited = new Set<string>();
+        gatherDependencies(selectedProtoSchema, visited);
+
+        // Also include ALL other proto schemas as potential dependencies
+        // This ensures cross-references between files work
+        for (const schema of allSchemas) {
+          if (schema.id !== selectedProtoSchema.id && !additionalProtos[schema.path]) {
+            additionalProtos[schema.path] = schema.content;
+          }
+        }
+
         const res = await fetch("/api/grpc-proxy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -395,6 +431,7 @@ export default function Home() {
             service: grpcConfig.service,
             method: grpcConfig.method,
             protoDefinition: selectedProtoSchema.content,
+            additionalProtos,
             message: interpolatedMessage,
             metadata,
             options: {
