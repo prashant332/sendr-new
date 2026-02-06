@@ -13,6 +13,7 @@
 | 16-18 | gRPC Streaming | Future |
 | 19-23 | AI Script Generation | **~95% Complete** |
 | 24-29 | Variable Live Preview | **Complete** |
+| 30-33 | Folder Support | **Phase 30 Complete** |
 
 ---
 
@@ -180,6 +181,102 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - [x] Undefined variable warnings
 - [x] Toggle for inline preview
 - [x] All input fields integrated
+
+---
+
+## Folder Support Phases (30-33) - Planned
+
+### Problem Analysis
+
+**Current State:**
+- Sendr has a flat structure: Collection → Requests (no folders)
+- When importing from Postman, folders are flattened into request name prefixes (e.g., `Users/Create User`)
+- Sidebar displays requests as a flat list under each collection
+- Workflow Runner executes all requests in a collection sequentially
+
+**Postman Structure:**
+- Collections → Folders (unlimited nesting) → Requests
+- Folders provide organizational hierarchy
+- Can run individual folders or entire collections
+
+**The Gap:**
+1. No visual folder hierarchy in sidebar despite names containing paths
+2. Cannot create/organize requests into folders within Sendr
+3. Cannot run a subset of requests (folder-level workflow execution)
+4. Postman import loses visual folder structure (preserved only in name prefixes)
+
+### Implementation Approach
+
+**Phase 1 (Virtual Folders):** Parse existing `/` prefixed names as virtual folder paths and display hierarchically. No database changes needed - works with existing Postman imports immediately.
+
+**Phase 2 (True Folders):** Add proper Folder entity for full folder management capabilities.
+
+---
+
+### Phase 30: Virtual Folder Display (UI Only) ✓
+- [x] Parse request names containing `/` as folder paths
+- [x] Build tree structure from flat request list in Sidebar
+- [x] Display collapsible folder nodes in sidebar
+- [x] Maintain backward compatibility (requests without `/` appear at root)
+- [x] Preserve existing Postman import behavior (already creates prefixed names)
+
+**Implementation:**
+- Created `buildFolderTree(requests)` utility in `Sidebar.tsx` that groups requests by path segments
+- Tree node types: `FolderTreeNode` and `RequestTreeNode`
+- Example: `Users/CRUD/Create User` → 📁 Users → 📁 CRUD → Create User
+- Folders show amber folder icon and request count badge
+- Folder expand/collapse state tracked per collection
+- Full path shown in tooltip on hover
+
+---
+
+### Phase 31: Folder-Level Operations
+- [ ] Add "Run Folder" button on folder nodes (runs only requests in that folder)
+- [ ] Add folder expand/collapse all
+- [ ] Add request count badge on folders
+- [ ] Sort folders alphabetically, then requests by original order
+
+**Workflow Runner Changes:**
+- Add `folderPath` filter parameter to `runWorkflow()`
+- Filter requests by prefix before execution
+
+---
+
+### Phase 32: Folder Management (True Folders)
+- [ ] Add `Folder` table to database schema
+  ```typescript
+  interface Folder {
+    id: string;
+    collectionId: string;
+    parentId: string | null;  // null = root folder
+    name: string;
+    order: number;  // for sorting
+  }
+  ```
+- [ ] Add `folderId` field to `SavedRequest` (nullable, null = collection root)
+- [ ] Migration: Convert existing `/` prefixed names to folder structure
+- [ ] Update Postman import to create actual folders
+
+---
+
+### Phase 33: Folder UI Management
+- [ ] Create folder via right-click context menu or button
+- [ ] Rename folder inline (like request name editing)
+- [ ] Delete folder (with confirmation, moves requests to parent)
+- [ ] Drag-and-drop to move requests between folders
+- [ ] Drag-and-drop to reorder requests within folder
+- [ ] Move folder (with all contents)
+
+---
+
+### Migration Strategy
+
+1. **Phase 30-31** can ship independently with zero breaking changes
+2. **Phase 32-33** requires database migration:
+   - On upgrade, parse all request names with `/` and create folder records
+   - Update request names to remove path prefix
+   - Set `folderId` on each request
+3. Export format versioned to `1.1` with folder structure
 
 ---
 

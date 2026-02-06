@@ -203,7 +203,7 @@ export default function Home() {
   };
 
   // Handle quick action selection
-  const handleQuickAction = (prompt: string, scriptType: ScriptType) => {
+  const handleQuickAction = (_prompt: string, scriptType: ScriptType) => {
     setActiveScriptTab(scriptType);
     setShowAIAssistant(true);
   };
