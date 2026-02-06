@@ -13,7 +13,7 @@
 | 16-18 | gRPC Streaming | Future |
 | 19-23 | AI Script Generation | **~95% Complete** |
 | 24-29 | Variable Live Preview | **Complete** |
-| 30-33 | Folder Support | **Phases 30-31 Complete** |
+| 30-32 | Folder Support | **100% Complete** |
 
 ---
 
@@ -184,7 +184,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 
 ---
 
-## Folder Support Phases (30-33) - Planned
+## Folder Support Phases (30-32)
 
 ### Problem Analysis
 
@@ -207,9 +207,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 
 ### Implementation Approach
 
-**Phase 1 (Virtual Folders):** Parse existing `/` prefixed names as virtual folder paths and display hierarchically. No database changes needed - works with existing Postman imports immediately.
-
-**Phase 2 (True Folders):** Add proper Folder entity for full folder management capabilities.
+**Virtual Folders:** Parse existing `/` prefixed names as virtual folder paths and display hierarchically. No database changes needed - works with existing Postman imports immediately. Folder management operates by updating request name prefixes.
 
 ---
 
@@ -247,41 +245,24 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 
 ---
 
-### Phase 32: Folder Management (True Folders)
-- [ ] Add `Folder` table to database schema
-  ```typescript
-  interface Folder {
-    id: string;
-    collectionId: string;
-    parentId: string | null;  // null = root folder
-    name: string;
-    order: number;  // for sorting
-  }
-  ```
-- [ ] Add `folderId` field to `SavedRequest` (nullable, null = collection root)
-- [ ] Migration: Convert existing `/` prefixed names to folder structure
-- [ ] Update Postman import to create actual folders
+### Phase 32: Folder Management (Virtual Folders) ✓
+- [x] Rename folder: Double-click folder name to edit inline, batch updates all request names
+- [x] Delete folder: Click × button, choose to delete requests OR keep them (move to parent)
+- [x] Move request to root: Click ↑ button on requests inside folders to move to collection root
 
----
+**Implementation:**
 
-### Phase 33: Folder UI Management
-- [ ] Create folder via right-click context menu or button
-- [ ] Rename folder inline (like request name editing)
-- [ ] Delete folder (with confirmation, moves requests to parent)
-- [ ] Drag-and-drop to move requests between folders
-- [ ] Drag-and-drop to reorder requests within folder
-- [ ] Move folder (with all contents)
+*New functions in `useCollections.ts`:*
+- `renameFolder(collectionId, oldPath, newPath)` - Batch updates all request name prefixes
+- `deleteFolder(collectionId, folderPath, keepRequests)` - Deletes folder, optionally keeps requests
+- `moveRequestToFolder(requestId, targetFolder)` - Moves request by updating name prefix
 
----
+*UI in `Sidebar.tsx`:*
+- Double-click folder name → inline edit mode (Enter to save, Escape to cancel)
+- × button on folder hover → confirm dialog with options (OK=delete all, Cancel=keep requests)
+- ↑ button on requests in folders → moves request to collection root
 
-### Migration Strategy
-
-1. **Phase 30-31** can ship independently with zero breaking changes
-2. **Phase 32-33** requires database migration:
-   - On upgrade, parse all request names with `/` and create folder records
-   - Update request names to remove path prefix
-   - Set `folderId` on each request
-3. Export format versioned to `1.1` with folder structure
+**No database schema changes** - all operations work by manipulating request name prefixes
 
 ---
 

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   useCollections,
   useCollectionRequests,
   deleteCollection,
   deleteRequest,
+  renameFolder,
+  deleteFolder,
+  moveRequestToFolder,
   type SavedRequest,
 } from "@/hooks/useCollections";
 
@@ -162,6 +165,9 @@ export function Sidebar({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set()
   );
+  // Folder editing state: "collectionId:folderPath" -> editing name
+  const [editingFolder, setEditingFolder] = useState<string | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState("");
 
   const toggleCollection = (id: string) => {
     setExpandedCollections((prev) => {
@@ -197,6 +203,48 @@ export function Sidebar({
     if (confirm("Delete this collection and all its requests?")) {
       await deleteCollection(id);
     }
+  };
+
+  const startEditingFolder = (collectionId: string, folderPath: string, currentName: string) => {
+    setEditingFolder(`${collectionId}:${folderPath}`);
+    setEditingFolderName(currentName);
+  };
+
+  const handleRenameFolder = async (collectionId: string, oldPath: string) => {
+    const newName = editingFolderName.trim();
+    if (!newName || newName === oldPath.split("/").pop()) {
+      setEditingFolder(null);
+      return;
+    }
+
+    // Build new path by replacing the last segment
+    const segments = oldPath.split("/");
+    segments[segments.length - 1] = newName;
+    const newPath = segments.join("/");
+
+    await renameFolder(collectionId, oldPath, newPath);
+    setEditingFolder(null);
+  };
+
+  const handleDeleteFolder = async (collectionId: string, folderPath: string, requestCount: number) => {
+    const choice = window.confirm(
+      `Delete folder "${folderPath.split("/").pop()}"?\n\n` +
+      `This folder contains ${requestCount} request(s).\n\n` +
+      `Click OK to delete the folder and all its requests.\n` +
+      `Click Cancel to keep the requests (they will be moved to the parent folder).`
+    );
+
+    if (choice) {
+      // User clicked OK - delete folder and requests
+      await deleteFolder(collectionId, folderPath, false);
+    } else {
+      // User clicked Cancel - keep requests, just remove folder
+      await deleteFolder(collectionId, folderPath, true);
+    }
+  };
+
+  const handleMoveRequest = async (requestId: string, targetFolder: string) => {
+    await moveRequestToFolder(requestId, targetFolder);
   };
 
   return (
@@ -260,6 +308,14 @@ export function Sidebar({
                 expandedFolders={expandedFolders}
                 onToggleFolder={(path) => toggleFolder(collection.id, path)}
                 isFolderExpanded={(path) => isFolderExpanded(collection.id, path)}
+                editingFolder={editingFolder}
+                editingFolderName={editingFolderName}
+                onStartEditingFolder={(path, name) => startEditingFolder(collection.id, path, name)}
+                onEditingFolderNameChange={setEditingFolderName}
+                onRenameFolder={(path) => handleRenameFolder(collection.id, path)}
+                onCancelEditingFolder={() => setEditingFolder(null)}
+                onDeleteFolder={(path, count) => handleDeleteFolder(collection.id, path, count)}
+                onMoveRequest={handleMoveRequest}
               />
             ))}
           </div>
@@ -281,6 +337,15 @@ interface CollectionItemProps {
   expandedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   isFolderExpanded: (path: string) => boolean;
+  // Folder editing
+  editingFolder: string | null;
+  editingFolderName: string;
+  onStartEditingFolder: (path: string, name: string) => void;
+  onEditingFolderNameChange: (name: string) => void;
+  onRenameFolder: (path: string) => void;
+  onCancelEditingFolder: () => void;
+  onDeleteFolder: (path: string, requestCount: number) => void;
+  onMoveRequest: (requestId: string, targetFolder: string) => void;
 }
 
 function CollectionItem({
@@ -294,6 +359,14 @@ function CollectionItem({
   onRequestSelect,
   onToggleFolder,
   isFolderExpanded,
+  editingFolder,
+  editingFolderName,
+  onStartEditingFolder,
+  onEditingFolderNameChange,
+  onRenameFolder,
+  onCancelEditingFolder,
+  onDeleteFolder,
+  onMoveRequest,
 }: CollectionItemProps) {
   const requests = useCollectionRequests(isExpanded ? collection.id : null);
 
@@ -344,12 +417,21 @@ function CollectionItem({
           ) : (
             <TreeNodeList
               nodes={folderTree}
+              collectionId={collection.id}
               activeRequestId={activeRequestId}
               onRequestSelect={onRequestSelect}
               onDeleteRequest={handleDeleteRequest}
               onToggleFolder={onToggleFolder}
               onRunFolder={onRunFolder}
               isFolderExpanded={isFolderExpanded}
+              editingFolder={editingFolder}
+              editingFolderName={editingFolderName}
+              onStartEditingFolder={onStartEditingFolder}
+              onEditingFolderNameChange={onEditingFolderNameChange}
+              onRenameFolder={onRenameFolder}
+              onCancelEditingFolder={onCancelEditingFolder}
+              onDeleteFolder={onDeleteFolder}
+              onMoveRequest={onMoveRequest}
               depth={0}
             />
           )}
@@ -361,23 +443,41 @@ function CollectionItem({
 
 interface TreeNodeListProps {
   nodes: TreeNode[];
+  collectionId: string;
   activeRequestId: string | null;
   onRequestSelect: (request: SavedRequest) => void;
   onDeleteRequest: (e: React.MouseEvent, id: string) => void;
   onToggleFolder: (path: string) => void;
   onRunFolder: (folderPath: string) => void;
   isFolderExpanded: (path: string) => boolean;
+  editingFolder: string | null;
+  editingFolderName: string;
+  onStartEditingFolder: (path: string, name: string) => void;
+  onEditingFolderNameChange: (name: string) => void;
+  onRenameFolder: (path: string) => void;
+  onCancelEditingFolder: () => void;
+  onDeleteFolder: (path: string, requestCount: number) => void;
+  onMoveRequest: (requestId: string, targetFolder: string) => void;
   depth: number;
 }
 
 function TreeNodeList({
   nodes,
+  collectionId,
   activeRequestId,
   onRequestSelect,
   onDeleteRequest,
   onToggleFolder,
   onRunFolder,
   isFolderExpanded,
+  editingFolder,
+  editingFolderName,
+  onStartEditingFolder,
+  onEditingFolderNameChange,
+  onRenameFolder,
+  onCancelEditingFolder,
+  onDeleteFolder,
+  onMoveRequest,
   depth,
 }: TreeNodeListProps) {
   return (
@@ -388,6 +488,7 @@ function TreeNodeList({
             <FolderItem
               key={`folder-${node.path}`}
               folder={node}
+              collectionId={collectionId}
               isExpanded={isFolderExpanded(node.path)}
               onToggle={() => onToggleFolder(node.path)}
               onRun={() => onRunFolder(node.path)}
@@ -397,6 +498,14 @@ function TreeNodeList({
               onToggleFolder={onToggleFolder}
               onRunFolder={onRunFolder}
               isFolderExpanded={isFolderExpanded}
+              editingFolder={editingFolder}
+              editingFolderName={editingFolderName}
+              onStartEditingFolder={onStartEditingFolder}
+              onEditingFolderNameChange={onEditingFolderNameChange}
+              onRenameFolder={onRenameFolder}
+              onCancelEditingFolder={onCancelEditingFolder}
+              onDeleteFolder={onDeleteFolder}
+              onMoveRequest={onMoveRequest}
               depth={depth}
             />
           );
@@ -409,6 +518,8 @@ function TreeNodeList({
               isActive={activeRequestId === node.request.id}
               onSelect={() => onRequestSelect(node.request)}
               onDelete={(e) => onDeleteRequest(e, node.request.id)}
+              onMoveToRoot={() => onMoveRequest(node.request.id, "")}
+              hasFolder={node.request.name.includes("/")}
             />
           );
         }
@@ -419,6 +530,7 @@ function TreeNodeList({
 
 interface FolderItemProps {
   folder: FolderTreeNode;
+  collectionId: string;
   isExpanded: boolean;
   onToggle: () => void;
   onRun: () => void;
@@ -428,11 +540,20 @@ interface FolderItemProps {
   onToggleFolder: (path: string) => void;
   onRunFolder: (folderPath: string) => void;
   isFolderExpanded: (path: string) => boolean;
+  editingFolder: string | null;
+  editingFolderName: string;
+  onStartEditingFolder: (path: string, name: string) => void;
+  onEditingFolderNameChange: (name: string) => void;
+  onRenameFolder: (path: string) => void;
+  onCancelEditingFolder: () => void;
+  onDeleteFolder: (path: string, requestCount: number) => void;
+  onMoveRequest: (requestId: string, targetFolder: string) => void;
   depth: number;
 }
 
 function FolderItem({
   folder,
+  collectionId,
   isExpanded,
   onToggle,
   onRun,
@@ -442,9 +563,26 @@ function FolderItem({
   onToggleFolder,
   onRunFolder,
   isFolderExpanded,
+  editingFolder,
+  editingFolderName,
+  onStartEditingFolder,
+  onEditingFolderNameChange,
+  onRenameFolder,
+  onCancelEditingFolder,
+  onDeleteFolder,
+  onMoveRequest,
   depth,
 }: FolderItemProps) {
   const requestCount = countRequests(folder.children);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isEditing = editingFolder === `${collectionId}:${folder.path}`;
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -454,6 +592,24 @@ function FolderItem({
   const handleRun = (e: React.MouseEvent) => {
     e.stopPropagation();
     onRun();
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onStartEditingFolder(folder.path, folder.name);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDeleteFolder(folder.path, requestCount);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      onRenameFolder(folder.path);
+    } else if (e.key === "Escape") {
+      onCancelEditingFolder();
+    }
   };
 
   return (
@@ -477,30 +633,65 @@ function FolderItem({
           >
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
-          <span className="text-sm text-zinc-300 truncate" title={folder.path}>
-            {folder.name}
-          </span>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editingFolderName}
+              onChange={(e) => onEditingFolderNameChange(e.target.value)}
+              onBlur={() => onRenameFolder(folder.path)}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm text-zinc-300 bg-zinc-800 border border-zinc-600 rounded px-1 py-0 w-full max-w-[120px] focus:outline-none focus:border-blue-500"
+            />
+          ) : (
+            <span
+              className="text-sm text-zinc-300 truncate hover:text-zinc-100"
+              title={`${folder.path} (double-click to rename)`}
+              onDoubleClick={handleDoubleClick}
+            >
+              {folder.name}
+            </span>
+          )}
           <span className="text-xs text-zinc-600 flex-shrink-0">({requestCount})</span>
         </div>
-        <button
-          onClick={handleRun}
-          className="text-zinc-600 hover:text-green-400 text-xs opacity-0 group-hover:opacity-100"
-          title="Run Folder"
-        >
-          ▶
-        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+          <button
+            onClick={handleRun}
+            className="text-zinc-600 hover:text-green-400 text-xs"
+            title="Run Folder"
+          >
+            ▶
+          </button>
+          <button
+            onClick={handleDelete}
+            className="text-zinc-600 hover:text-red-400 text-xs"
+            title="Delete Folder"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {isExpanded && (
         <div className="ml-4 border-l border-zinc-700 pl-2 mt-0.5 space-y-0.5">
           <TreeNodeList
             nodes={folder.children}
+            collectionId={collectionId}
             activeRequestId={activeRequestId}
             onRequestSelect={onRequestSelect}
             onDeleteRequest={onDeleteRequest}
             onToggleFolder={onToggleFolder}
             onRunFolder={onRunFolder}
             isFolderExpanded={isFolderExpanded}
+            editingFolder={editingFolder}
+            editingFolderName={editingFolderName}
+            onStartEditingFolder={onStartEditingFolder}
+            onEditingFolderNameChange={onEditingFolderNameChange}
+            onRenameFolder={onRenameFolder}
+            onCancelEditingFolder={onCancelEditingFolder}
+            onDeleteFolder={onDeleteFolder}
+            onMoveRequest={onMoveRequest}
             depth={depth + 1}
           />
         </div>
@@ -515,13 +706,20 @@ interface RequestItemProps {
   isActive: boolean;
   onSelect: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  onMoveToRoot: () => void;
+  hasFolder: boolean;
 }
 
-function RequestItem({ request, displayName, isActive, onSelect, onDelete }: RequestItemProps) {
+function RequestItem({ request, displayName, isActive, onSelect, onDelete, onMoveToRoot, hasFolder }: RequestItemProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     onSelect();
+  };
+
+  const handleMoveToRoot = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMoveToRoot();
   };
 
   const methodColor =
@@ -553,12 +751,23 @@ function RequestItem({ request, displayName, isActive, onSelect, onDelete }: Req
         </span>
         <span className="text-sm text-zinc-300 truncate">{displayName}</span>
       </div>
-      <button
-        onClick={onDelete}
-        className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 text-xs flex-shrink-0"
-      >
-        ×
-      </button>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+        {hasFolder && (
+          <button
+            onClick={handleMoveToRoot}
+            className="text-zinc-600 hover:text-blue-400 text-xs"
+            title="Move to Root"
+          >
+            ↑
+          </button>
+        )}
+        <button
+          onClick={onDelete}
+          className="text-zinc-600 hover:text-red-400 text-xs flex-shrink-0"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
