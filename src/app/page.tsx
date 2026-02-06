@@ -89,7 +89,7 @@ export default function Home() {
   const [showEnvManager, setShowEnvManager] = useState(false);
   const [showCreateCollection, setShowCreateCollection] = useState(false);
   const [showSaveRequest, setShowSaveRequest] = useState(false);
-  const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string } | null>(null);
+  const [runnerCollection, setRunnerCollection] = useState<{ id: string; name: string; folderPath?: string } | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showImportExport, setShowImportExport] = useState(false);
   const [showProtoManager, setShowProtoManager] = useState(false);
@@ -693,6 +693,7 @@ export default function Home() {
         onNewCollection={() => setShowCreateCollection(true)}
         onNewRequest={() => setShowSaveRequest(true)}
         onRunCollection={(id, name) => setRunnerCollection({ id, name })}
+        onRunFolder={(id, name, folderPath) => setRunnerCollection({ id, name, folderPath })}
         onImportExport={() => setShowImportExport(true)}
       />
 
@@ -1288,6 +1289,7 @@ export default function Home() {
         <WorkflowRunner
           collectionId={runnerCollection.id}
           collectionName={runnerCollection.name}
+          folderPath={runnerCollection.folderPath}
           onClose={() => setRunnerCollection(null)}
         />
       )}

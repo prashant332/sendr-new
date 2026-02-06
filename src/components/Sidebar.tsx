@@ -142,6 +142,7 @@ interface SidebarProps {
   onNewCollection: () => void;
   onNewRequest: () => void;
   onRunCollection: (collectionId: string, collectionName: string) => void;
+  onRunFolder: (collectionId: string, collectionName: string, folderPath: string) => void;
   onImportExport: () => void;
 }
 
@@ -151,6 +152,7 @@ export function Sidebar({
   onNewCollection,
   onNewRequest,
   onRunCollection,
+  onRunFolder,
   onImportExport,
 }: SidebarProps) {
   const collections = useCollections();
@@ -250,6 +252,9 @@ export function Sidebar({
                   e.stopPropagation();
                   onRunCollection(collection.id, collection.name);
                 }}
+                onRunFolder={(folderPath) => {
+                  onRunFolder(collection.id, collection.name, folderPath);
+                }}
                 activeRequestId={activeRequestId}
                 onRequestSelect={onRequestSelect}
                 expandedFolders={expandedFolders}
@@ -270,6 +275,7 @@ interface CollectionItemProps {
   onToggle: () => void;
   onDelete: (e: React.MouseEvent) => void;
   onRun: (e: React.MouseEvent) => void;
+  onRunFolder: (folderPath: string) => void;
   activeRequestId: string | null;
   onRequestSelect: (request: SavedRequest) => void;
   expandedFolders: Set<string>;
@@ -283,6 +289,7 @@ function CollectionItem({
   onToggle,
   onDelete,
   onRun,
+  onRunFolder,
   activeRequestId,
   onRequestSelect,
   onToggleFolder,
@@ -341,6 +348,7 @@ function CollectionItem({
               onRequestSelect={onRequestSelect}
               onDeleteRequest={handleDeleteRequest}
               onToggleFolder={onToggleFolder}
+              onRunFolder={onRunFolder}
               isFolderExpanded={isFolderExpanded}
               depth={0}
             />
@@ -357,6 +365,7 @@ interface TreeNodeListProps {
   onRequestSelect: (request: SavedRequest) => void;
   onDeleteRequest: (e: React.MouseEvent, id: string) => void;
   onToggleFolder: (path: string) => void;
+  onRunFolder: (folderPath: string) => void;
   isFolderExpanded: (path: string) => boolean;
   depth: number;
 }
@@ -367,6 +376,7 @@ function TreeNodeList({
   onRequestSelect,
   onDeleteRequest,
   onToggleFolder,
+  onRunFolder,
   isFolderExpanded,
   depth,
 }: TreeNodeListProps) {
@@ -380,10 +390,12 @@ function TreeNodeList({
               folder={node}
               isExpanded={isFolderExpanded(node.path)}
               onToggle={() => onToggleFolder(node.path)}
+              onRun={() => onRunFolder(node.path)}
               activeRequestId={activeRequestId}
               onRequestSelect={onRequestSelect}
               onDeleteRequest={onDeleteRequest}
               onToggleFolder={onToggleFolder}
+              onRunFolder={onRunFolder}
               isFolderExpanded={isFolderExpanded}
               depth={depth}
             />
@@ -409,10 +421,12 @@ interface FolderItemProps {
   folder: FolderTreeNode;
   isExpanded: boolean;
   onToggle: () => void;
+  onRun: () => void;
   activeRequestId: string | null;
   onRequestSelect: (request: SavedRequest) => void;
   onDeleteRequest: (e: React.MouseEvent, id: string) => void;
   onToggleFolder: (path: string) => void;
+  onRunFolder: (folderPath: string) => void;
   isFolderExpanded: (path: string) => boolean;
   depth: number;
 }
@@ -421,10 +435,12 @@ function FolderItem({
   folder,
   isExpanded,
   onToggle,
+  onRun,
   activeRequestId,
   onRequestSelect,
   onDeleteRequest,
   onToggleFolder,
+  onRunFolder,
   isFolderExpanded,
   depth,
 }: FolderItemProps) {
@@ -433,6 +449,11 @@ function FolderItem({
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onToggle();
+  };
+
+  const handleRun = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRun();
   };
 
   return (
@@ -461,6 +482,13 @@ function FolderItem({
           </span>
           <span className="text-xs text-zinc-600 flex-shrink-0">({requestCount})</span>
         </div>
+        <button
+          onClick={handleRun}
+          className="text-zinc-600 hover:text-green-400 text-xs opacity-0 group-hover:opacity-100"
+          title="Run Folder"
+        >
+          ▶
+        </button>
       </div>
 
       {isExpanded && (
@@ -471,6 +499,7 @@ function FolderItem({
             onRequestSelect={onRequestSelect}
             onDeleteRequest={onDeleteRequest}
             onToggleFolder={onToggleFolder}
+            onRunFolder={onRunFolder}
             isFolderExpanded={isFolderExpanded}
             depth={depth + 1}
           />

@@ -23,6 +23,7 @@ export interface RequestResult {
 export interface RunSummary {
   collectionId: string;
   collectionName: string;
+  folderPath?: string; // If running a specific folder
   totalRequests: number;
   completedRequests: number;
   failedRequests: number;
@@ -39,6 +40,7 @@ export interface RunnerConfig {
   initialVariables: Record<string, string>;
   delay?: number; // ms delay between requests
   stopOnError?: boolean;
+  folderPath?: string; // Optional: only run requests in this folder (prefix match)
 }
 
 export type RunnerCallback = (
@@ -58,7 +60,7 @@ export async function runWorkflow(
   config: RunnerConfig,
   onProgress?: RunnerCallback
 ): Promise<RunSummary> {
-  const { collectionId, initialVariables, delay = 0, stopOnError = false } = config;
+  const { collectionId, initialVariables, delay = 0, stopOnError = false, folderPath } = config;
 
   // Load collection and requests
   const collection = await db.collections.get(collectionId);
@@ -66,15 +68,24 @@ export async function runWorkflow(
     throw new Error(`Collection not found: ${collectionId}`);
   }
 
-  const requests = await db.requests
+  let requests = await db.requests
     .where("collectionId")
     .equals(collectionId)
     .toArray();
+
+  // Filter by folder path if specified
+  if (folderPath) {
+    const folderPrefix = folderPath + "/";
+    requests = requests.filter((r) =>
+      r.name.startsWith(folderPrefix) || r.name === folderPath
+    );
+  }
 
   // Initialize summary
   const summary: RunSummary = {
     collectionId,
     collectionName: collection.name,
+    folderPath,
     totalRequests: requests.length,
     completedRequests: 0,
     failedRequests: 0,

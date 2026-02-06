@@ -13,7 +13,7 @@
 | 16-18 | gRPC Streaming | Future |
 | 19-23 | AI Script Generation | **~95% Complete** |
 | 24-29 | Variable Live Preview | **Complete** |
-| 30-33 | Folder Support | **Phase 30 Complete** |
+| 30-33 | Folder Support | **Phases 30-31 Complete** |
 
 ---
 
@@ -230,15 +230,20 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 
 ---
 
-### Phase 31: Folder-Level Operations
-- [ ] Add "Run Folder" button on folder nodes (runs only requests in that folder)
-- [ ] Add folder expand/collapse all
-- [ ] Add request count badge on folders
-- [ ] Sort folders alphabetically, then requests by original order
+### Phase 31: Folder-Level Operations ✓
+- [x] Add "Run Folder" button on folder nodes (runs only requests in that folder)
+- [x] Add request count badge on folders (implemented in Phase 30)
+- [x] Sort folders alphabetically, then requests by original order (implemented in Phase 30)
+- [ ] Add folder expand/collapse all (deferred - low priority)
 
-**Workflow Runner Changes:**
-- Add `folderPath` filter parameter to `runWorkflow()`
-- Filter requests by prefix before execution
+**Implementation:**
+- Added `folderPath` optional parameter to `RunnerConfig` in `workflowRunner.ts`
+- Workflow runner filters requests by folder path prefix before execution
+- Added `onRunFolder` callback prop to `Sidebar` component
+- Added ▶ "Run Folder" button on folder hover (appears next to folder name)
+- Updated `WorkflowRunner` component to accept `folderPath` prop
+- WorkflowRunner UI shows "Run Folder" title and folder path when running a folder
+- `RunSummary` includes `folderPath` for tracking
 
 ---
 

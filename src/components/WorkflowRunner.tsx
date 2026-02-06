@@ -7,12 +7,14 @@ import { useEnvironmentStore } from "@/store/environmentStore";
 interface WorkflowRunnerProps {
   collectionId: string;
   collectionName: string;
+  folderPath?: string; // Optional: run only requests in this folder
   onClose: () => void;
 }
 
 export function WorkflowRunner({
   collectionId,
   collectionName,
+  folderPath,
   onClose,
 }: WorkflowRunnerProps) {
   const [isRunning, setIsRunning] = useState(false);
@@ -32,6 +34,7 @@ export function WorkflowRunner({
           initialVariables: getActiveVariables(),
           delay: 100,
           stopOnError: false,
+          folderPath,
         },
         (event, data) => {
           setSummary({ ...data.summary });
@@ -49,7 +52,7 @@ export function WorkflowRunner({
     } finally {
       setIsRunning(false);
     }
-  }, [collectionId, getActiveVariables]);
+  }, [collectionId, folderPath, getActiveVariables]);
 
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
@@ -62,8 +65,15 @@ export function WorkflowRunner({
         {/* Header */}
         <div className="p-4 border-b border-zinc-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Run Collection</h2>
-            <p className="text-sm text-zinc-400">{collectionName}</p>
+            <h2 className="text-lg font-semibold">
+              {folderPath ? "Run Folder" : "Run Collection"}
+            </h2>
+            <p className="text-sm text-zinc-400">
+              {collectionName}
+              {folderPath && (
+                <span className="text-amber-400"> / {folderPath}</span>
+              )}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -79,14 +89,14 @@ export function WorkflowRunner({
           {!isRunning && !summary && (
             <div className="text-center py-8">
               <p className="text-zinc-400 mb-4">
-                Run all requests in this collection sequentially.
+                Run all requests in this {folderPath ? "folder" : "collection"} sequentially.
                 Variables set in earlier requests will be available in later ones.
               </p>
               <button
                 onClick={handleRun}
                 className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded font-medium"
               >
-                Run Collection
+                {folderPath ? "Run Folder" : "Run Collection"}
               </button>
             </div>
           )}
