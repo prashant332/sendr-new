@@ -99,6 +99,8 @@ export default function Home() {
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [activeRequestName, setActiveRequestName] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved" | null>(null);
+  const [isEditingRequestName, setIsEditingRequestName] = useState(false);
+  const [editingRequestName, setEditingRequestName] = useState("");
 
   // Get store methods
   const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
@@ -228,6 +230,26 @@ export default function Home() {
       setSaveStatus("unsaved");
     }
   }, [activeRequestId, method, url, headers, params, body, auth, preRequestScript, testScript, responseTemplate, grpcConfig]);
+
+  // Save request name
+  const handleSaveRequestName = useCallback(async () => {
+    if (!activeRequestId || !editingRequestName.trim()) {
+      setIsEditingRequestName(false);
+      return;
+    }
+    const newName = editingRequestName.trim();
+    if (newName === activeRequestName) {
+      setIsEditingRequestName(false);
+      return;
+    }
+    try {
+      await updateRequest(activeRequestId, { name: newName });
+      setActiveRequestName(newName);
+    } catch (err) {
+      console.error("Failed to update request name:", err);
+    }
+    setIsEditingRequestName(false);
+  }, [activeRequestId, editingRequestName, activeRequestName]);
 
   // Debounced auto-save
   useEffect(() => {
@@ -684,9 +706,34 @@ export default function Home() {
               {activeRequestName && (
                 <div className="flex items-center gap-2">
                   <span className="text-zinc-600">/</span>
-                  <span className="text-lg text-zinc-300 max-w-md truncate" title={activeRequestName}>
-                    {activeRequestName}
-                  </span>
+                  {isEditingRequestName ? (
+                    <input
+                      type="text"
+                      value={editingRequestName}
+                      onChange={(e) => setEditingRequestName(e.target.value)}
+                      onBlur={handleSaveRequestName}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleSaveRequestName();
+                        } else if (e.key === "Escape") {
+                          setIsEditingRequestName(false);
+                        }
+                      }}
+                      autoFocus
+                      className="text-lg text-zinc-300 bg-zinc-800 border border-zinc-600 rounded px-2 py-0.5 max-w-md focus:outline-none focus:border-blue-500"
+                    />
+                  ) : (
+                    <span
+                      className="text-lg text-zinc-300 max-w-md truncate cursor-pointer hover:text-zinc-100 hover:underline"
+                      title={`${activeRequestName} (click to edit)`}
+                      onClick={() => {
+                        setEditingRequestName(activeRequestName);
+                        setIsEditingRequestName(true);
+                      }}
+                    >
+                      {activeRequestName}
+                    </span>
+                  )}
                 </div>
               )}
               {saveStatus && (

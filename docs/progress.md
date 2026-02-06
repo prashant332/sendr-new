@@ -202,7 +202,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 13 | Getting error ENOENT: no such file or directory, open 'main.proto' while trying to invoke grpc service | Fixed - Rewrote gRPC proxy to parse proto strings directly with protobufjs |
 | 14 | Getting error pm.expect(...).to.be.greaterThan is not a function from the script. This should be supported in script engine | Fixed - Added greaterThan and lessThan as Chai-style aliases |
 | 15 | Getting error Cannot read properties of undefined (reading 'property') for the script pm.expect(data.form).to.not.have.property("inactive_field") | Fixed - Added to.not.have.property() that handles undefined values |
-
+| 16 | i cannot edit the name of the request onces it is saved. i should be able to change the name | Fixed - Click request name in header to edit inline |
 ### Bug Fix Details
 
 #### Bug #4 (Environment Creation in Docker)
@@ -235,6 +235,17 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - This ensures all type references are resolved before generating samples
 - Nested message types now properly generate sample fields recursively
 - Includes depth limit (default: 5) and cycle detection for self-referential messages
+
+#### Bug #16 (Cannot Edit Request Name)
+
+**Root Cause:** There was no UI to edit a request's name after it was saved. The name was displayed as static text.
+
+**Fix Applied:**
+- Made the request name in the header clickable
+- Clicking the name enters inline edit mode with an input field
+- Press Enter or click away to save the new name
+- Press Escape to cancel editing
+- The name updates in the sidebar automatically via Dexie's live queries
 
 #### Bug #14 (pm.expect greaterThan not a function)
 
