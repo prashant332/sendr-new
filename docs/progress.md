@@ -200,6 +200,8 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 11 | gRPC sample message generation only generates root fields, not nested message types | Fixed - Added resolveAll() call to resolve type references |
 | 12 | Proto parse errors only shown in console, not in UI | Fixed - Added warnings/errors display in GrpcRequestEditor |
 | 13 | Getting error ENOENT: no such file or directory, open 'main.proto' while trying to invoke grpc service | Fixed - Rewrote gRPC proxy to parse proto strings directly with protobufjs |
+| 14 | Getting error pm.expect(...).to.be.greaterThan is not a function from the script. This should be supported in script engine | Fixed - Added greaterThan and lessThan as Chai-style aliases |
+| 15 | Getting error Cannot read properties of undefined (reading 'property') for the script pm.expect(data.form).to.not.have.property("inactive_field") | Fixed - Added to.not.have.property() that handles undefined values |
 
 ### Bug Fix Details
 
@@ -233,6 +235,23 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - This ensures all type references are resolved before generating samples
 - Nested message types now properly generate sample fields recursively
 - Includes depth limit (default: 5) and cycle detection for self-referential messages
+
+#### Bug #14 (pm.expect greaterThan not a function)
+
+**Root Cause:** The Chai-style assertion library was missing `greaterThan` and `lessThan` methods which are common aliases.
+
+**Fix Applied:**
+- Added `to.be.greaterThan(num)` as alias for `to.be.above(num)`
+- Added `to.be.lessThan(num)` as alias for `to.be.below(num)`
+
+#### Bug #15 (to.not.have.property fails on undefined)
+
+**Root Cause:** The `to.not.have` object was missing entirely from the assertion library. When calling `pm.expect(undefined).to.not.have.property("key")`, it threw an error because `have` didn't exist on `not`.
+
+**Fix Applied:**
+- Added `to.not.have.property(key)` method
+- Handles undefined/null values gracefully (passes since they don't have any properties)
+- Only throws if value is an object that actually has the specified property
 
 #### Bug #13 (gRPC ENOENT 'main.proto' Error)
 

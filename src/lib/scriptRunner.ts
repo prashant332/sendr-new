@@ -82,9 +82,19 @@ function createExpect(value: unknown) {
             throw new Error(`Expected ${value} to be above ${num}`);
           }
         },
+        greaterThan: (num: number) => {
+          if (typeof value !== "number" || value <= num) {
+            throw new Error(`Expected ${value} to be greater than ${num}`);
+          }
+        },
         below: (num: number) => {
           if (typeof value !== "number" || value >= num) {
             throw new Error(`Expected ${value} to be below ${num}`);
+          }
+        },
+        lessThan: (num: number) => {
+          if (typeof value !== "number" || value >= num) {
+            throw new Error(`Expected ${value} to be less than ${num}`);
           }
         },
         at: {
@@ -203,6 +213,20 @@ function createExpect(value: unknown) {
               throw new Error(`Expected string to not be empty`);
             }
           }) as unknown as boolean,
+        },
+        have: {
+          property: (key: string) => {
+            // If value is null or undefined, it doesn't have the property (assertion passes)
+            if (value === null || value === undefined) {
+              return; // Pass - null/undefined don't have any properties
+            }
+            if (typeof value !== "object") {
+              return; // Pass - non-objects don't have properties in the expected sense
+            }
+            if (key in value) {
+              throw new Error(`Expected object to not have property "${key}"`);
+            }
+          },
         },
         include: (item: unknown) => {
           if (Array.isArray(value) && value.includes(item)) {
