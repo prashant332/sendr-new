@@ -49,23 +49,34 @@ function buildFolderTree(requests: SavedRequest[]): TreeNode[] {
   });
 
   for (const request of sortedRequests) {
-    const segments = request.name.split("/");
+    // Split by "/" and filter out empty segments (handles leading/trailing slashes)
+    const segments = request.name
+      .split("/")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (segments.length === 0) {
+      // Empty name, skip
+      continue;
+    }
 
     if (segments.length === 1) {
       // No folder path, add directly to root
       root.push({
         type: "request",
         request,
-        displayName: request.name,
+        displayName: segments[0],
       });
     } else {
-      // Has folder path
+      // Has folder path - last segment is the request name
       const requestName = segments.pop()!;
       let currentPath = "";
       let currentChildren = root;
 
       // Create/find folder hierarchy
       for (const segment of segments) {
+        if (!segment) continue; // Skip empty segments
+
         const parentPath = currentPath;
         currentPath = currentPath ? `${currentPath}/${segment}` : segment;
 
@@ -93,11 +104,13 @@ function buildFolderTree(requests: SavedRequest[]): TreeNode[] {
       }
 
       // Add request to deepest folder
-      currentChildren.push({
-        type: "request",
-        request,
-        displayName: requestName,
-      });
+      if (requestName) {
+        currentChildren.push({
+          type: "request",
+          request,
+          displayName: requestName,
+        });
+      }
     }
   }
 

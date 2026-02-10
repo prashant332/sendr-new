@@ -286,6 +286,8 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 14 | Getting error pm.expect(...).to.be.greaterThan is not a function from the script. This should be supported in script engine | Fixed - Added greaterThan and lessThan as Chai-style aliases |
 | 15 | Getting error Cannot read properties of undefined (reading 'property') for the script pm.expect(data.form).to.not.have.property("inactive_field") | Fixed - Added to.not.have.property() that handles undefined values |
 | 16 | i cannot edit the name of the request onces it is saved. i should be able to change the name | Fixed - Click request name in header to edit inline |
+| 17 | The virtual folder is not detecting the clean heirarchy while importing from postman collection. Ut is just keeing '/' as is in title. It should represent the virtual directory structure as we implemented it in Phase 30 -32 | Fixed - Improved folder tree parsing and Postman import handling |
+
 ### Bug Fix Details
 
 #### Bug #4 (Environment Creation in Docker)
@@ -367,6 +369,26 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - Added logic to gather all proto schemas from the database
 - All proto files are now sent as `additionalProtos` in the gRPC request
 - This ensures cross-file type references (like `OrderNote`) are resolved correctly
+
+#### Bug #17 (Virtual Folder Not Detecting Hierarchy from Postman Import)
+
+**Root Cause:** The `buildFolderTree` function and Postman import had edge case issues:
+1. Empty segments from leading/trailing slashes weren't filtered out
+2. Whitespace in folder/request names wasn't trimmed
+3. Empty folder names weren't handled gracefully
+
+**Fix Applied:**
+
+*In `Sidebar.tsx` - `buildFolderTree()`:*
+- Split segments now trimmed and filtered for empty strings
+- Handles edge cases: `/Users/Request`, `Users/Request/`, empty names
+- More defensive checks for empty segments during folder creation
+
+*In `importExport.ts` - Postman import:*
+- Folder and request names are now trimmed of whitespace
+- Empty folder names default to "Unnamed Folder"
+- Empty request names default to "Unnamed Request"
+- Empty folders (no items) are now skipped
 
 ---
 

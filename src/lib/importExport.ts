@@ -510,9 +510,14 @@ async function processPostmanItems(
   let anyScriptsNormalized = false;
 
   for (const item of items) {
-    if (item.item) {
-      // It's a folder, process nested items with prefix
-      const folderPrefix = prefix ? `${prefix}/${item.name}` : item.name;
+    // Clean the item name - trim whitespace and handle special characters
+    const itemName = (item.name || "").trim();
+
+    if (item.item && item.item.length > 0) {
+      // It's a folder with nested items
+      // Build folder prefix, ensuring no double slashes or empty segments
+      const folderName = itemName || "Unnamed Folder";
+      const folderPrefix = prefix ? `${prefix}/${folderName}` : folderName;
       const normalized = await processPostmanItems(item.item, collectionId, result, folderPrefix);
       if (normalized) anyScriptsNormalized = true;
     } else if (item.request) {
@@ -530,6 +535,7 @@ async function processPostmanItems(
         result.errors.push(`Failed to import request "${item.name}": ${err}`);
       }
     }
+    // Note: Items with neither item[] nor request are skipped (empty folders or malformed data)
   }
 
   return anyScriptsNormalized;
@@ -543,7 +549,10 @@ function convertPostmanRequest(
   prefix: string
 ): { request: Omit<SavedRequest, "id" | "collectionId">; scriptsWereNormalized: boolean } {
   const postmanReq = item.request!;
-  const name = prefix ? `${prefix}/${item.name}` : item.name;
+  // Clean request name - trim whitespace
+  const itemName = (item.name || "Unnamed Request").trim();
+  // Build full path name with folder prefix
+  const name = prefix ? `${prefix}/${itemName}` : itemName;
 
   // Extract URL
   let url = "";
