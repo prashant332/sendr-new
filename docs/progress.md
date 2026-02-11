@@ -287,6 +287,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 15 | Getting error Cannot read properties of undefined (reading 'property') for the script pm.expect(data.form).to.not.have.property("inactive_field") | Fixed - Added to.not.have.property() that handles undefined values |
 | 16 | i cannot edit the name of the request onces it is saved. i should be able to change the name | Fixed - Click request name in header to edit inline |
 | 17 | The virtual folder is not detecting the clean heirarchy while importing from postman collection. Ut is just keeing '/' as is in title. It should represent the virtual directory structure as we implemented it in Phase 30 -32 | Fixed - Improved folder tree parsing and Postman import handling |
+| 18 | Postman collection/folder level scripts not imported, and unsupported Postman Sandbox APIs cause errors | Fixed - Scripts merged into requests with clear comments; unsupported APIs detected with warnings |
 
 ### Bug Fix Details
 
@@ -389,6 +390,30 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - Empty folder names default to "Unnamed Folder"
 - Empty request names default to "Unnamed Request"
 - Empty folders (no items) are now skipped
+
+#### Bug #18 (Postman Collection/Folder Scripts & Unsupported APIs)
+
+**Issues:**
+1. Postman supports scripts at collection and folder levels that run before/after every request in that scope. These were being ignored during import.
+2. Postman Sandbox APIs like `pm.sendRequest()`, `new Postman()`, `require()` are not supported in Sendr but scripts using them would fail silently.
+
+**Fix Applied:**
+
+*Collection/Folder Script Merging:*
+- Collection-level and folder-level scripts are now extracted during import
+- Scripts are merged into each request with clear, boxed comments indicating the source:
+  ```javascript
+  // ╔════════════════════════════════════════════════════════════════════╗
+  // ║ Pre-request Script from Collection: "My API"
+  // ║ NOTE: This script was copied during import. Review and remove if
+  // ║       not needed for this specific request.
+  // ╚════════════════════════════════════════════════════════════════════╝
+  ```
+- Import shows warning: "Scripts from collection and folder level(s) have been merged into individual requests..."
+
+*Unsupported Postman API Detection:*
+- Detects usage of unsupported APIs: `pm.sendRequest()`, `new Postman()`, `pm.visualizer`, `pm.cookies`, `pm.vault`, `postman.setNextRequest()`, `require()`, etc.
+- Import shows clear warning with list of detected APIs: "⚠️ UNSUPPORTED POSTMAN APIs DETECTED: pm.sendRequest(), require(). These APIs are not supported in Sendr and will cause errors..."
 
 ---
 

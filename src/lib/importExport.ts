@@ -53,6 +53,7 @@ interface PostmanCollection {
   };
   item: PostmanItem[];
   variable?: PostmanVariable[];
+  event?: PostmanEvent[]; // Collection-level scripts
 }
 
 interface PostmanItem {
@@ -340,8 +341,19 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
   const collectionName = data.info.name || "Imported Collection";
   const collectionId = generateUUID();
 
-  // Check if collection has scripts
-  const hasScripts = checkForScripts(data.item);
+  // Extract collection-level scripts
+  const collectionScripts = extractScriptsFromEvents(data.event);
+  const hasCollectionScripts = !!(collectionScripts.preRequest.trim() || collectionScripts.test.trim());
+
+  // Check if collection has scripts at any level
+  const hasScripts = checkForScripts(data.item) || hasCollectionScripts;
+
+  // Track unsupported APIs found
+  const unsupportedApisFound = new Set<string>();
+
+  // Check collection-level scripts for unsupported APIs
+  detectUnsupportedApis(collectionScripts.preRequest).forEach(api => unsupportedApisFound.add(api));
+  detectUnsupportedApis(collectionScripts.test).forEach(api => unsupportedApisFound.add(api));
 
   try {
     await db.collections.add({
@@ -351,8 +363,23 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
     });
     result.collectionsImported++;
 
+    // Build inherited scripts context
+    const inheritedScripts: InheritedScripts = {
+      collectionName,
+      collectionPreRequest: collectionScripts.preRequest,
+      collectionTest: collectionScripts.test,
+      folderScripts: [],
+    };
+
     // Recursively process items (handles folders) and track if scripts were normalized
-    const scriptsWereNormalized = await processPostmanItems(data.item, collectionId, result, "");
+    const processResult = await processPostmanItems(
+      data.item,
+      collectionId,
+      result,
+      "",
+      inheritedScripts,
+      unsupportedApisFound
+    );
 
     // Import collection-level variables as an environment if present
     let environmentCreated = false;
@@ -385,16 +412,35 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
       );
     }
 
+    // Warning about collection/folder level scripts being merged
+    if (hasCollectionScripts || processResult.hasFolderScripts) {
+      const scriptSources: string[] = [];
+      if (hasCollectionScripts) scriptSources.push("collection");
+      if (processResult.hasFolderScripts) scriptSources.push("folder");
+
+      result.warnings.push(
+        `Scripts from ${scriptSources.join(" and ")} level(s) have been merged into individual requests. ` +
+        "Each request now contains the combined scripts with clear comments marking the source. " +
+        "Please review each request and remove any scripts that are not needed for that specific request."
+      );
+    }
+
     if (hasScripts) {
-      if (scriptsWereNormalized) {
+      if (processResult.scriptsWereNormalized) {
         result.warnings.push(
           "Scripts normalized: pm.globals, pm.collectionVariables, and pm.variables " +
           "have been converted to pm.environment for compatibility."
         );
       }
+    }
+
+    // Warning about unsupported Postman APIs
+    if (unsupportedApisFound.size > 0) {
+      const apiList = Array.from(unsupportedApisFound).join(", ");
       result.warnings.push(
-        "Note: Sendr supports pm.environment, pm.response, pm.test, and pm.expect. " +
-        "Other Postman APIs (pm.sendRequest, pm.cookies, etc.) are not supported."
+        `⚠️ UNSUPPORTED POSTMAN APIs DETECTED: ${apiList}. ` +
+        "These APIs are not supported in Sendr and will cause errors. " +
+        "Please review your scripts and remove or replace these calls before running requests."
       );
     }
   } catch (err) {
@@ -403,6 +449,28 @@ export async function importFromPostman(data: PostmanCollection): Promise<Import
   }
 
   return result;
+}
+
+/**
+ * Inherited scripts context passed down during import
+ */
+interface InheritedScripts {
+  collectionName: string;
+  collectionPreRequest: string;
+  collectionTest: string;
+  folderScripts: Array<{
+    folderName: string;
+    preRequest: string;
+    test: string;
+  }>;
+}
+
+/**
+ * Result from processing Postman items
+ */
+interface ProcessResult {
+  scriptsWereNormalized: boolean;
+  hasFolderScripts: boolean;
 }
 
 /**
@@ -428,6 +496,61 @@ function checkForScripts(items: PostmanItem[]): boolean {
 }
 
 /**
+ * Unsupported Postman Sandbox APIs that we detect and warn about
+ */
+const UNSUPPORTED_POSTMAN_APIS = [
+  { pattern: /new\s+Postman\s*\(/g, name: "new Postman()" },
+  { pattern: /pm\.sendRequest\s*\(/g, name: "pm.sendRequest()" },
+  { pattern: /pm\.visualizer\./g, name: "pm.visualizer" },
+  { pattern: /pm\.execution\./g, name: "pm.execution" },
+  { pattern: /pm\.cookies\./g, name: "pm.cookies" },
+  { pattern: /pm\.vault\./g, name: "pm.vault" },
+  { pattern: /postman\.setNextRequest\s*\(/g, name: "postman.setNextRequest()" },
+  { pattern: /postman\.getResponseHeader\s*\(/g, name: "postman.getResponseHeader()" },
+  { pattern: /postman\.getResponseCookie\s*\(/g, name: "postman.getResponseCookie()" },
+  { pattern: /require\s*\(\s*['"`]/g, name: "require()" },
+  { pattern: /pm\.iterationData\./g, name: "pm.iterationData" },
+];
+
+/**
+ * Detect unsupported Postman Sandbox APIs in a script
+ * Returns list of detected unsupported API names
+ */
+function detectUnsupportedApis(script: string): string[] {
+  if (!script || !script.trim()) return [];
+
+  const detected: string[] = [];
+  for (const api of UNSUPPORTED_POSTMAN_APIS) {
+    if (api.pattern.test(script)) {
+      detected.push(api.name);
+      // Reset regex lastIndex for global patterns
+      api.pattern.lastIndex = 0;
+    }
+  }
+  return detected;
+}
+
+/**
+ * Extract pre-request and test scripts from Postman events
+ */
+function extractScriptsFromEvents(events?: PostmanEvent[]): { preRequest: string; test: string } {
+  let preRequest = "";
+  let test = "";
+
+  if (events) {
+    for (const event of events) {
+      if (event.listen === "prerequest" && event.script?.exec) {
+        preRequest = event.script.exec.join("\n");
+      } else if (event.listen === "test" && event.script?.exec) {
+        test = event.script.exec.join("\n");
+      }
+    }
+  }
+
+  return { preRequest, test };
+}
+
+/**
  * Normalize Postman script variable APIs to use pm.environment
  * Converts pm.globals.*, pm.collectionVariables.*, and pm.variables.* to pm.environment.*
  */
@@ -442,7 +565,7 @@ function normalizeScriptVariables(script: string): { normalized: string; wasTran
   // Replace pm.globals.get("key") or pm.globals.get('key') with pm.environment.get("key")
   normalized = normalized.replace(
     /pm\.globals\.get\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g,
-    (match, quote, key) => {
+    (_match, quote, key) => {
       wasTransformed = true;
       return `pm.environment.get(${quote}${key}${quote})`;
     }
@@ -460,7 +583,7 @@ function normalizeScriptVariables(script: string): { normalized: string; wasTran
   // Replace pm.collectionVariables.get("key") with pm.environment.get("key")
   normalized = normalized.replace(
     /pm\.collectionVariables\.get\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g,
-    (match, quote, key) => {
+    (_match, quote, key) => {
       wasTransformed = true;
       return `pm.environment.get(${quote}${key}${quote})`;
     }
@@ -479,7 +602,7 @@ function normalizeScriptVariables(script: string): { normalized: string; wasTran
   // Note: pm.variables.get is read-only in Postman but we normalize it anyway
   normalized = normalized.replace(
     /pm\.variables\.get\s*\(\s*(['"`])([^'"`]+)\1\s*\)/g,
-    (match, quote, key) => {
+    (_match, quote, key) => {
       wasTransformed = true;
       return `pm.environment.get(${quote}${key}${quote})`;
     }
@@ -499,15 +622,18 @@ function normalizeScriptVariables(script: string): { normalized: string; wasTran
 
 /**
  * Recursively process Postman items (requests and folders)
- * Returns true if any scripts were normalized during processing
+ * Returns processing result with flags for normalization and folder scripts
  */
 async function processPostmanItems(
   items: PostmanItem[],
   collectionId: string,
   result: ImportResult,
-  prefix: string
-): Promise<boolean> {
+  prefix: string,
+  inheritedScripts: InheritedScripts,
+  unsupportedApisFound: Set<string>
+): Promise<ProcessResult> {
   let anyScriptsNormalized = false;
+  let hasFolderScripts = false;
 
   for (const item of items) {
     // Clean the item name - trim whitespace and handle special characters
@@ -515,15 +641,53 @@ async function processPostmanItems(
 
     if (item.item && item.item.length > 0) {
       // It's a folder with nested items
-      // Build folder prefix, ensuring no double slashes or empty segments
       const folderName = itemName || "Unnamed Folder";
       const folderPrefix = prefix ? `${prefix}/${folderName}` : folderName;
-      const normalized = await processPostmanItems(item.item, collectionId, result, folderPrefix);
-      if (normalized) anyScriptsNormalized = true;
+
+      // Extract folder-level scripts
+      const folderScripts = extractScriptsFromEvents(item.event);
+      const thisFolderHasScripts = !!(folderScripts.preRequest.trim() || folderScripts.test.trim());
+
+      if (thisFolderHasScripts) {
+        hasFolderScripts = true;
+        // Check for unsupported APIs in folder scripts
+        detectUnsupportedApis(folderScripts.preRequest).forEach(api => unsupportedApisFound.add(api));
+        detectUnsupportedApis(folderScripts.test).forEach(api => unsupportedApisFound.add(api));
+      }
+
+      // Build inherited scripts for this folder's children
+      const childInheritedScripts: InheritedScripts = {
+        ...inheritedScripts,
+        folderScripts: [
+          ...inheritedScripts.folderScripts,
+          ...(thisFolderHasScripts ? [{
+            folderName,
+            preRequest: folderScripts.preRequest,
+            test: folderScripts.test,
+          }] : []),
+        ],
+      };
+
+      const childResult = await processPostmanItems(
+        item.item,
+        collectionId,
+        result,
+        folderPrefix,
+        childInheritedScripts,
+        unsupportedApisFound
+      );
+
+      if (childResult.scriptsWereNormalized) anyScriptsNormalized = true;
+      if (childResult.hasFolderScripts) hasFolderScripts = true;
     } else if (item.request) {
       // It's a request
       try {
-        const { request, scriptsWereNormalized } = convertPostmanRequest(item, prefix);
+        const { request, scriptsWereNormalized } = convertPostmanRequest(
+          item,
+          prefix,
+          inheritedScripts,
+          unsupportedApisFound
+        );
         if (scriptsWereNormalized) anyScriptsNormalized = true;
         await db.requests.add({
           id: generateUUID(),
@@ -538,7 +702,67 @@ async function processPostmanItems(
     // Note: Items with neither item[] nor request are skipped (empty folders or malformed data)
   }
 
-  return anyScriptsNormalized;
+  return { scriptsWereNormalized: anyScriptsNormalized, hasFolderScripts };
+}
+
+/**
+ * Build a merged script with inherited scripts and clear comments
+ */
+function buildMergedScript(
+  scriptType: "Pre-request" | "Test",
+  inheritedScripts: InheritedScripts,
+  requestScript: string
+): string {
+  const parts: string[] = [];
+  const collectionScript = scriptType === "Pre-request"
+    ? inheritedScripts.collectionPreRequest
+    : inheritedScripts.collectionTest;
+
+  // Add collection-level script
+  if (collectionScript.trim()) {
+    parts.push(
+      `// ╔════════════════════════════════════════════════════════════════════╗`,
+      `// ║ ${scriptType} Script from Collection: "${inheritedScripts.collectionName}"`,
+      `// ║ NOTE: This script was copied during import. Review and remove if`,
+      `// ║       not needed for this specific request.`,
+      `// ╚════════════════════════════════════════════════════════════════════╝`,
+      collectionScript,
+      ``
+    );
+  }
+
+  // Add folder-level scripts (in order from root to deepest)
+  for (const folder of inheritedScripts.folderScripts) {
+    const folderScript = scriptType === "Pre-request" ? folder.preRequest : folder.test;
+    if (folderScript.trim()) {
+      parts.push(
+        `// ╔════════════════════════════════════════════════════════════════════╗`,
+        `// ║ ${scriptType} Script from Folder: "${folder.folderName}"`,
+        `// ║ NOTE: This script was copied during import. Review and remove if`,
+        `// ║       not needed for this specific request.`,
+        `// ╚════════════════════════════════════════════════════════════════════╝`,
+        folderScript,
+        ``
+      );
+    }
+  }
+
+  // Add request-level script
+  if (requestScript.trim()) {
+    if (parts.length > 0) {
+      // Only add header if there were inherited scripts
+      parts.push(
+        `// ╔════════════════════════════════════════════════════════════════════╗`,
+        `// ║ ${scriptType} Script for this Request`,
+        `// ╚════════════════════════════════════════════════════════════════════╝`,
+        requestScript
+      );
+    } else {
+      parts.push(requestScript);
+    }
+  }
+
+  return parts.join("\n");
 }
 
 /**
@@ -546,7 +770,9 @@ async function processPostmanItems(
  */
 function convertPostmanRequest(
   item: PostmanItem,
-  prefix: string
+  prefix: string,
+  inheritedScripts: InheritedScripts,
+  unsupportedApisFound: Set<string>
 ): { request: Omit<SavedRequest, "id" | "collectionId">; scriptsWereNormalized: boolean } {
   const postmanReq = item.request!;
   // Clean request name - trim whitespace
@@ -584,9 +810,9 @@ function convertPostmanRequest(
   // Extract auth
   const auth = convertPostmanAuth(postmanReq.auth);
 
-  // Extract and normalize scripts
-  let preRequestScript = "";
-  let testScript = "";
+  // Extract and normalize request-level scripts
+  let requestPreRequestScript = "";
+  let requestTestScript = "";
   let scriptsWereNormalized = false;
 
   if (item.event) {
@@ -594,16 +820,24 @@ function convertPostmanRequest(
       if (event.listen === "prerequest" && event.script?.exec) {
         const raw = event.script.exec.join("\n");
         const { normalized, wasTransformed } = normalizeScriptVariables(raw);
-        preRequestScript = normalized;
+        requestPreRequestScript = normalized;
         if (wasTransformed) scriptsWereNormalized = true;
+        // Check for unsupported APIs
+        detectUnsupportedApis(raw).forEach(api => unsupportedApisFound.add(api));
       } else if (event.listen === "test" && event.script?.exec) {
         const raw = event.script.exec.join("\n");
         const { normalized, wasTransformed } = normalizeScriptVariables(raw);
-        testScript = normalized;
+        requestTestScript = normalized;
         if (wasTransformed) scriptsWereNormalized = true;
+        // Check for unsupported APIs
+        detectUnsupportedApis(raw).forEach(api => unsupportedApisFound.add(api));
       }
     }
   }
+
+  // Build merged scripts with inherited collection/folder scripts
+  const preRequestScript = buildMergedScript("Pre-request", inheritedScripts, requestPreRequestScript);
+  const testScript = buildMergedScript("Test", inheritedScripts, requestTestScript);
 
   // Map method
   const method = (postmanReq.method?.toUpperCase() || "GET") as SavedRequest["method"];
