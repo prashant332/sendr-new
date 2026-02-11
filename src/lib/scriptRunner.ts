@@ -16,6 +16,13 @@ export interface ScriptResult {
 /**
  * Extracts line and column number from an error's stack trace.
  * Returns { line, column } or null if not found.
+ *
+ * Note: new Function("pm", "console", code) wraps user code like:
+ *   function anonymous(pm, console) {  // internal line 1
+ *     <user code line 1>               // internal line 2
+ *     <user code line 2>               // internal line 3
+ *   }
+ * So we subtract 2 from the reported line to get the user's actual line number.
  */
 function extractErrorLocation(error: Error): { line: number; column: number } | null {
   if (!error.stack) return null;
@@ -33,13 +40,18 @@ function extractErrorLocation(error: Error): { line: number; column: number } | 
     /> eval:(\d+):(\d+)/,           // Firefox alternative
   ];
 
+  // Line offset: new Function adds 2 lines of wrapper (function declaration + opening brace on same line,
+  // but the code starts on what V8 considers line 2). Empirically, V8 reports line N+2 for user line N.
+  const LINE_OFFSET = 2;
+
   for (const pattern of patterns) {
     const match = error.stack.match(pattern);
     if (match) {
-      // Subtract 1 from line because new Function adds a wrapper line
-      const line = parseInt(match[1], 10);
+      const rawLine = parseInt(match[1], 10);
       const column = parseInt(match[2], 10);
-      return { line: Math.max(1, line), column };
+      // Subtract offset and ensure minimum of 1
+      const line = Math.max(1, rawLine - LINE_OFFSET);
+      return { line, column };
     }
   }
 

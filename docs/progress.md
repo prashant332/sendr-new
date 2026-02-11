@@ -428,6 +428,7 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 - Error messages now display as: "Line X, Column Y: Error message"
 - Works for both top-level script errors and test assertion failures
 - Added `errorLine` and `errorColumn` fields to `ScriptResult` interface
+- Accounts for 2-line offset from `new Function()` wrapper to report correct user code line numbers
 
 #### Bug #20 (Script Editor Area Too Small)
 
