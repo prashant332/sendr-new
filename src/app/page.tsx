@@ -84,6 +84,8 @@ export default function Home() {
   const [testScript, setTestScript] = useState("");
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [scriptError, setScriptError] = useState<string | null>(null);
+  const [preRequestExpanded, setPreRequestExpanded] = useState(false);
+  const [testScriptExpanded, setTestScriptExpanded] = useState(false);
 
   // Modals
   const [showEnvManager, setShowEnvManager] = useState(false);
@@ -929,8 +931,20 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <div className="text-sm text-zinc-400 mb-2">Pre-request Script</div>
-                    <div className="h-32 border border-zinc-700 rounded overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-zinc-400">Pre-request Script</div>
+                      <button
+                        onClick={() => setPreRequestExpanded(!preRequestExpanded)}
+                        className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-300 transition-colors"
+                        title={preRequestExpanded ? "Collapse" : "Expand"}
+                      >
+                        {preRequestExpanded ? "↙ Collapse" : "↗ Expand"}
+                      </button>
+                    </div>
+                    <div
+                      className="border border-zinc-700 rounded overflow-hidden transition-all duration-200"
+                      style={{ height: preRequestExpanded ? "300px" : "150px" }}
+                    >
                       <Editor
                         key={`pre-request-editor-${activeEnvironmentId}`}
                         height="100%"
@@ -955,8 +969,20 @@ export default function Home() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-zinc-400 mb-2">Test Script</div>
-                    <div className="h-32 border border-zinc-700 rounded overflow-hidden">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-zinc-400">Test Script</div>
+                      <button
+                        onClick={() => setTestScriptExpanded(!testScriptExpanded)}
+                        className="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-300 transition-colors"
+                        title={testScriptExpanded ? "Collapse" : "Expand"}
+                      >
+                        {testScriptExpanded ? "↙ Collapse" : "↗ Expand"}
+                      </button>
+                    </div>
+                    <div
+                      className="border border-zinc-700 rounded overflow-hidden transition-all duration-200"
+                      style={{ height: testScriptExpanded ? "300px" : "150px" }}
+                    >
                       <Editor
                         key={`test-editor-${activeEnvironmentId}`}
                         height="100%"

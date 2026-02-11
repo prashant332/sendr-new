@@ -288,6 +288,9 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 | 16 | i cannot edit the name of the request onces it is saved. i should be able to change the name | Fixed - Click request name in header to edit inline |
 | 17 | The virtual folder is not detecting the clean heirarchy while importing from postman collection. Ut is just keeing '/' as is in title. It should represent the virtual directory structure as we implemented it in Phase 30 -32 | Fixed - Improved folder tree parsing and Postman import handling |
 | 18 | Postman collection/folder level scripts not imported, and unsupported Postman Sandbox APIs cause errors | Fixed - Scripts merged into requests with clear comments; unsupported APIs detected with warnings |
+| 19 | When the script error happens, the line or location of script is not given to debug and troubleshoot | Fixed - Error messages now include line and column numbers |
+| 20 | The script area is too small to make edits with huge scroll. Can the UX of script edit area be improved? | Fixed - Increased default height and added expand/collapse buttons |
+| 21 | The left request tab width is not adjustable. The long names gets cut off and not able to adjust width to see the request | Fixed - Sidebar is now resizable with drag handle |
 
 ### Bug Fix Details
 
@@ -414,6 +417,40 @@ See [Variable Preview documentation](variable-preview.md) for full details.
 *Unsupported Postman API Detection:*
 - Detects usage of unsupported APIs: `pm.sendRequest()`, `new Postman()`, `pm.visualizer`, `pm.cookies`, `pm.vault`, `postman.setNextRequest()`, `require()`, etc.
 - Import shows clear warning with list of detected APIs: "⚠️ UNSUPPORTED POSTMAN APIs DETECTED: pm.sendRequest(), require(). These APIs are not supported in Sendr and will cause errors..."
+
+#### Bug #19 (Script Errors Missing Line Numbers)
+
+**Root Cause:** When script errors occurred, only the error message was captured without any location information, making debugging difficult.
+
+**Fix Applied:**
+- Added `extractErrorLocation()` function to parse stack traces and extract line/column numbers
+- Added `formatErrorWithLocation()` to format errors with location prefix
+- Error messages now display as: "Line X, Column Y: Error message"
+- Works for both top-level script errors and test assertion failures
+- Added `errorLine` and `errorColumn` fields to `ScriptResult` interface
+
+#### Bug #20 (Script Editor Area Too Small)
+
+**Root Cause:** Script editors had a fixed height of 128px (`h-32`), making it difficult to view and edit longer scripts.
+
+**Fix Applied:**
+- Increased default editor height from 128px to 150px
+- Added expand/collapse buttons for each script editor
+- Expanded mode increases height to 300px
+- Added smooth transition animation when expanding/collapsing
+- State tracked separately for pre-request and test script editors
+
+#### Bug #21 (Sidebar Width Not Adjustable)
+
+**Root Cause:** Sidebar had a fixed width of 256px (`w-64`), causing long request names to be cut off.
+
+**Fix Applied:**
+- Added resizable sidebar with drag handle on right edge
+- Width adjustable between 200px (min) and 500px (max)
+- Default width remains 256px
+- Drag handle highlights blue on hover
+- Cursor changes to `col-resize` while dragging
+- Smooth dragging with proper mouse event handling
 
 ---
 

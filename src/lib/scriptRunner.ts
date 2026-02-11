@@ -9,6 +9,63 @@ export interface ScriptResult {
   testResults: TestResult[];
   logs: string[];
   error?: string;
+  errorLine?: number;
+  errorColumn?: number;
+}
+
+/**
+ * Extracts line and column number from an error's stack trace.
+ * Returns { line, column } or null if not found.
+ */
+function extractErrorLocation(error: Error): { line: number; column: number } | null {
+  if (!error.stack) return null;
+
+  // Look for patterns like:
+  // - "at eval (eval at runScript..., <anonymous>:3:5)"
+  // - "at anonymous:3:5"
+  // - "at Function (<anonymous>:3:5)"
+  // - "eval:3:5" (Firefox)
+  const patterns = [
+    /<anonymous>:(\d+):(\d+)/,      // Chrome/Node pattern
+    /at anonymous:(\d+):(\d+)/,     // Alternative pattern
+    /Function:(\d+):(\d+)/,         // Function pattern
+    /eval:(\d+):(\d+)/,             // Firefox pattern
+    /> eval:(\d+):(\d+)/,           // Firefox alternative
+  ];
+
+  for (const pattern of patterns) {
+    const match = error.stack.match(pattern);
+    if (match) {
+      // Subtract 1 from line because new Function adds a wrapper line
+      const line = parseInt(match[1], 10);
+      const column = parseInt(match[2], 10);
+      return { line: Math.max(1, line), column };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Formats an error message with optional line/column information.
+ */
+function formatErrorWithLocation(error: Error): {
+  message: string;
+  line?: number;
+  column?: number;
+} {
+  const location = extractErrorLocation(error);
+  const baseMessage = error.message || String(error);
+
+  if (location) {
+    return {
+      message: `Line ${location.line}, Column ${location.column}: ${baseMessage}`,
+      line: location.line,
+      column: location.column,
+    };
+  }
+
+  return { message: baseMessage };
 }
 
 export interface ScriptContext {
@@ -352,10 +409,14 @@ export function runScript(code: string, context: ScriptContext): ScriptResult {
         fn();
         testResults.push({ name, passed: true });
       } catch (err) {
+        const errorInfo =
+          err instanceof Error
+            ? formatErrorWithLocation(err)
+            : { message: String(err) };
         testResults.push({
           name,
           passed: false,
-          error: err instanceof Error ? err.message : String(err),
+          error: errorInfo.message,
         });
       }
     },
@@ -386,11 +447,17 @@ export function runScript(code: string, context: ScriptContext): ScriptResult {
       logs,
     };
   } catch (err) {
+    const errorInfo =
+      err instanceof Error
+        ? formatErrorWithLocation(err)
+        : { message: String(err) };
     return {
       updatedVariables,
       testResults,
       logs,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorInfo.message,
+      errorLine: errorInfo.line,
+      errorColumn: errorInfo.column,
     };
   }
 }

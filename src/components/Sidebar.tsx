@@ -162,6 +162,11 @@ interface SidebarProps {
   onImportExport: () => void;
 }
 
+// Min and max sidebar widths in pixels
+const MIN_SIDEBAR_WIDTH = 200;
+const MAX_SIDEBAR_WIDTH = 500;
+const DEFAULT_SIDEBAR_WIDTH = 256;
+
 export function Sidebar({
   activeRequestId,
   onRequestSelect,
@@ -181,6 +186,39 @@ export function Sidebar({
   // Folder editing state: "collectionId:folderPath" -> editing name
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
+
+  // Sidebar resize state
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<HTMLDivElement>(null);
+
+  // Handle resize mouse events
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      // Prevent text selection while resizing
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [isResizing]);
 
   const toggleCollection = (id: string) => {
     setExpandedCollections((prev) => {
@@ -261,7 +299,22 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full">
+    <div
+      className="bg-zinc-900 border-r border-zinc-800 flex flex-col h-full relative"
+      style={{ width: sidebarWidth, minWidth: MIN_SIDEBAR_WIDTH, maxWidth: MAX_SIDEBAR_WIDTH }}
+    >
+      {/* Resize Handle */}
+      <div
+        ref={resizeRef}
+        className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/50 transition-colors ${
+          isResizing ? "bg-blue-500" : "bg-transparent"
+        }`}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setIsResizing(true);
+        }}
+        title="Drag to resize sidebar"
+      />
       {/* Header */}
       <div className="p-3 border-b border-zinc-800">
         <div className="flex items-center justify-between mb-2">
