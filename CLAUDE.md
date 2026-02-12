@@ -140,8 +140,20 @@ All API requests go through `/api/proxy` (HTTP) or `/api/grpc-proxy` (gRPC). The
 ### Scripting API
 Sandboxed `pm` API mimicking Postman:
 ```javascript
-pm.environment.get(key)           // Get variable
-pm.environment.set(key, value)    // Set variable
+// Variable access (all scopes normalized to single environment)
+pm.environment.get(key)           // Get variable value
+pm.environment.set(key, value)    // Set variable value
+pm.environment.has(key)           // Check if variable exists
+pm.environment.unset(key)         // Remove a variable
+pm.environment.clear()            // Remove all variables
+pm.environment.toObject()         // Get all variables as object
+
+// Aliases (all map to pm.environment)
+pm.variables.get/set/has/unset/clear/toObject
+pm.globals.get/set/has/unset/clear/toObject
+pm.collectionVariables.get/set/has/unset/clear/toObject
+
+// Response & testing
 pm.response.json()                // Get response (test scripts only)
 pm.test(name, callback)           // Define test assertion
 pm.expect(value)                  // Chai assertion
@@ -151,6 +163,8 @@ pm.response.metadata(key)         // Get gRPC metadata
 pm.response.trailers(key)         // Get gRPC trailers
 pm.response.grpcStatus            // { code, details }
 ```
+
+**Note:** Sendr uses a single variable scope. Postman's `pm.globals`, `pm.collectionVariables`, and `pm.variables` all map to `pm.environment` for compatibility.
 
 ### Variable Interpolation
 - **Syntax:** `{{variable_name}}`

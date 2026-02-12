@@ -1015,8 +1015,8 @@ export default function Home() {
                     )}
                   </div>
                   <div className="text-xs text-zinc-500">
-                    Available: pm.environment.get(key), pm.environment.set(key, value),
-                    pm.response.json() (test only), pm.test(name, fn)
+                    Available: pm.environment.get/set, pm.variables.get/set, pm.globals.get/set,
+                    pm.response.json() (test only), pm.test(name, fn), pm.expect()
                   </div>
                 </div>
               )}

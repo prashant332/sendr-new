@@ -372,16 +372,37 @@ export function runScript(code: string, context: ScriptContext): ScriptResult {
   const testResults: TestResult[] = [];
   const logs: string[] = [];
 
-  // Build the pm object
-  const pm = {
-    environment: {
-      get: (key: string): string | undefined => {
-        return updatedVariables[key];
-      },
-      set: (key: string, value: string): void => {
-        updatedVariables[key] = String(value);
-      },
+  // Build the environment accessor (shared by all variable scope aliases)
+  const environmentAccessor = {
+    get: (key: string): string | undefined => {
+      return updatedVariables[key];
     },
+    set: (key: string, value: string): void => {
+      updatedVariables[key] = String(value);
+    },
+    has: (key: string): boolean => {
+      return key in updatedVariables && updatedVariables[key] !== undefined;
+    },
+    unset: (key: string): void => {
+      delete updatedVariables[key];
+    },
+    clear: (): void => {
+      Object.keys(updatedVariables).forEach((key) => delete updatedVariables[key]);
+    },
+    toObject: (): Record<string, string> => {
+      return { ...updatedVariables };
+    },
+  };
+
+  // Build the pm object
+  // Note: Sendr normalizes all Postman variable scopes to a single environment.
+  // pm.globals, pm.collectionVariables, and pm.variables all map to pm.environment.
+  const pm = {
+    environment: environmentAccessor,
+    // Aliases for Postman compatibility - all map to the same environment
+    globals: environmentAccessor,
+    collectionVariables: environmentAccessor,
+    variables: environmentAccessor,
     response: {
       json: (): unknown => {
         if (!context.response) {
