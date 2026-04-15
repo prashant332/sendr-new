@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       temperature = 0.2,
     } = body;
 
-    if (!apiKey) {
+    if (!apiKey && provider !== "ollama") {
       return NextResponse.json({ error: "API key is required" }, { status: 400 });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAIStore, DEFAULT_PROVIDER_CONFIG, PROVIDER_MODELS } from "@/store/aiStore";
+import { useAIStore, DEFAULT_PROVIDER_CONFIG, PROVIDER_MODELS, OLLAMA_MODEL_INFO } from "@/store/aiStore";
 import { AIProviderType, LLMProvider } from "@/lib/db";
 import { getAdapter } from "@/lib/ai/adapters";
 
@@ -99,7 +99,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
   };
 
   const handleSaveProvider = async () => {
-    if (!formData.name || !formData.apiKey || !formData.model) {
+    if (!formData.name || (!formData.apiKey && formData.type !== "ollama") || !formData.model) {
       return;
     }
 
@@ -431,11 +431,17 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                     className="w-full bg-gray-700 rounded px-3 py-2"
                   >
-                    {PROVIDER_MODELS[formData.type].map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
+                  {PROVIDER_MODELS[formData.type].map((model) => {
+                      const info = formData.type === "ollama" ? OLLAMA_MODEL_INFO[model] : undefined;
+                      const label = info
+                        ? `${info.recommended ? "★ " : ""}${model} — ${info.description}`
+                        : model;
+                      return (
+                        <option key={model} value={model}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 ) : (
                   <input
@@ -445,6 +451,23 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                     placeholder="model-name"
                     className="w-full bg-gray-700 rounded px-3 py-2"
                   />
+                )}
+                {formData.type === "ollama" && OLLAMA_MODEL_INFO[formData.model] && (
+                  <div className="mt-2 bg-gray-800 rounded p-2 text-xs text-gray-300 space-y-1">
+                    <div>
+                      <span className="text-gray-400">Best for: </span>
+                      {OLLAMA_MODEL_INFO[formData.model].bestFor}
+                    </div>
+                    {OLLAMA_MODEL_INFO[formData.model].recommended && (
+                      <div className="text-yellow-400">★ Recommended for API scripting</div>
+                    )}
+                  </div>
+                )}
+                {formData.type === "ollama" && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Make sure the model is pulled locally first:{" "}
+                    <code className="bg-gray-700 px-1 rounded">ollama pull {formData.model || DEFAULT_PROVIDER_CONFIG.ollama.model}</code>
+                  </p>
                 )}
               </div>
 
