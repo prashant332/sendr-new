@@ -179,3 +179,34 @@ export const PROVIDER_MODELS: Record<AIProviderType, string[]> = {
   ollama: ["llama3:8b", "llama3:70b", "codellama:7b", "mistral:7b", "mixtral:8x7b"],
   custom: [],
 };
+
+export interface OllamaModelInfo {
+  description: string;
+  bestFor: string;
+  recommended?: boolean;
+}
+
+export const OLLAMA_MODEL_INFO: Record<string, OllamaModelInfo> = {
+  "llama3:8b": {
+    description: "Fast, well-rounded — good balance of speed and quality",
+    bestFor: "General scripting, variable extraction, test assertions",
+    recommended: true,
+  },
+  "llama3:70b": {
+    description: "High-quality responses, requires more RAM (~40 GB)",
+    bestFor: "Complex multi-step scripts and chain testing",
+  },
+  "codellama:7b": {
+    description: "Code-focused model, lightweight and fast",
+    bestFor: "Writing pre/post scripts, JavaScript code generation",
+    recommended: true,
+  },
+  "mistral:7b": {
+    description: "Efficient and instruction-tuned, runs on modest hardware",
+    bestFor: "Quick pre-request scripts and simple transformations",
+  },
+  "mixtral:8x7b": {
+    description: "Mixture-of-experts, strong reasoning, requires ~26 GB RAM",
+    bestFor: "Advanced scripting with complex conditional logic",
+  },
+};
