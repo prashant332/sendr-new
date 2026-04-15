@@ -28,7 +28,6 @@ export class OllamaAdapter implements LLMAdapter {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         provider: "ollama",
-        apiKey: "",
         model: provider.model,
         baseUrl: provider.baseUrl,
         messages,
@@ -72,8 +71,13 @@ export class OllamaAdapter implements LLMAdapter {
         (m: { name: string }) => m.name
       );
 
+      // Match exactly, or by base name (e.g. "llama3" matches "llama3:8b") but
+      // require the colon separator to avoid partial-name false positives.
+      const baseName = provider.model.includes(":")
+        ? provider.model.split(":")[0] + ":"
+        : provider.model + ":";
       const modelInstalled = installedModels.some(
-        (m) => m === provider.model || m.startsWith(provider.model.split(":")[0])
+        (m) => m === provider.model || m.startsWith(baseName)
       );
 
       if (!modelInstalled && installedModels.length > 0) {

@@ -55,6 +55,8 @@ export class AnthropicAdapter implements LLMAdapter {
     provider: LLMProvider
   ): Promise<{ success: boolean; error?: string; model?: string }> {
     try {
+      // Anthropic has no lightweight ping endpoint, so we send a minimal
+      // inference request (maxTokens: 10) to validate the API key and model.
       const response = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
