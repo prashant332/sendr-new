@@ -99,7 +99,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
   };
 
   const handleSaveProvider = async () => {
-    if (!formData.name || !formData.apiKey || !formData.model) {
+    if (!formData.name || (!formData.apiKey && formData.type !== "ollama") || !formData.model) {
       return;
     }
 
