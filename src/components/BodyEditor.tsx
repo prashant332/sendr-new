@@ -37,6 +37,8 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
 
   const getActiveVariables = useEnvironmentStore((state) => state.getActiveVariables);
   const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
+  const theme = useEnvironmentStore((state) => state.theme);
+  const monacoTheme = theme === "light" ? "vs-light" : "vs-dark";
 
   const handleModeChange = (mode: BodyMode) => {
     onChange({ ...body, mode });
@@ -183,13 +185,13 @@ export function BodyEditor({ body, onChange }: BodyEditorProps) {
             key={`body-editor-${activeEnvironmentId}`}
             height="100%"
             language={getEditorLanguage()}
-            theme="vs-dark"
+            theme={monacoTheme}
             value={body.raw}
             onChange={handleRawChange}
             onMount={handleEditorMount}
             options={{
               minimap: { enabled: false },
-              fontSize: 13,
+              fontSize: 14,
               lineNumbers: "on",
               scrollBeyondLastLine: false,
               automaticLayout: true,
