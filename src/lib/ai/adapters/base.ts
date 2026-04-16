@@ -16,8 +16,8 @@ export interface LLMAdapter {
 
 // Helper to parse the generated script from LLM response
 export function parseScriptResponse(content: string): ScriptGenerationResult {
-  // Extract code block
-  const codeBlockMatch = content.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
+  // Extract code block (accept any language tag, e.g. ```javascript, ```js, ```text, or none)
+  const codeBlockMatch = content.match(/```(?:[a-zA-Z0-9]*)?\s*([\s\S]*?)```/);
 
   let script = "";
   let explanation = "";
