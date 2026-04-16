@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+function extractCodeFromMarkdown(markdown: string): string {
+  const fencedCodeBlockMatch = markdown.match(/```(?:[\w+-]+\n)?([\s\S]*?)```/);
+
+  if (fencedCodeBlockMatch?.[1]) {
+    return fencedCodeBlockMatch[1].trim();
+  }
+
+  return markdown.trim();
+}
 interface OpenAIMessage {
   role: string;
   content: string;
@@ -197,6 +206,9 @@ export async function POST(request: NextRequest) {
 
         const ollamaData = await response.json();
         content = ollamaData.message?.content || "";
+        // Ollama models often wrap responses in markdown code fences; strip them so
+        // the caller receives raw JavaScript that can be embedded directly.
+        content = extractCodeFromMarkdown(content);
         break;
       }
 

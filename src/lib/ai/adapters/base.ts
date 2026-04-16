@@ -14,10 +14,18 @@ export interface LLMAdapter {
   testConnection(provider: LLMProvider): Promise<{ success: boolean; error?: string; model?: string }>;
 }
 
+const CODE_FENCE_RE = /```(?:[^\r\n`]*)?\s*([\s\S]*?)```/;
+
+// Extract raw code from a markdown code fence, or return the original string unchanged.
+export function extractCodeFromMarkdown(content: string): string {
+  const match = content.match(CODE_FENCE_RE);
+  return match ? match[1].trim() : content;
+}
+
 // Helper to parse the generated script from LLM response
 export function parseScriptResponse(content: string): ScriptGenerationResult {
-  // Extract code block
-  const codeBlockMatch = content.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
+  // Extract code block (accept any language tag, e.g. ```javascript, ```js, ```text, or none)
+  const codeBlockMatch = content.match(CODE_FENCE_RE);
 
   let script = "";
   let explanation = "";
