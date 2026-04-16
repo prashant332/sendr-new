@@ -224,7 +224,7 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
                 <div className="space-y-2">
                   {Object.entries(selectedEnv.variables).map(([key, value]) => (
                     <VariableRow
-                      key={key}
+                      key={`${selectedEnvId}-${key}`}
                       variableKey={key}
                       value={value}
                       onUpdate={(newKey, newValue) =>
