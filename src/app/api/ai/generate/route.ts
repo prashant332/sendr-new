@@ -209,6 +209,15 @@ export async function POST(request: NextRequest) {
         // Ollama models often wrap responses in markdown code fences; strip them so
         // the caller receives raw JavaScript that can be embedded directly.
         content = extractCodeFromMarkdown(content);
+        if (!content.trim()) {
+          return NextResponse.json(
+            {
+              error:
+                "Ollama returned an empty response. The model may not have generated any content — try rephrasing your prompt or selecting a different model.",
+            },
+            { status: 502 }
+          );
+        }
         break;
       }
 

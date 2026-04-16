@@ -167,6 +167,15 @@ export default function AIScriptAssistant({
     setConversationHistory([]);
   };
 
+  const handleResetSession = () => {
+    setConversationHistory([]);
+    setGeneratedScript("");
+    setExplanation("");
+    setError(null);
+    setValidationWarnings([]);
+    setPrompt("");
+  };
+
   if (!isOpen) return null;
 
   const defaultProvider = getDefaultProvider();
@@ -182,6 +191,15 @@ export default function AIScriptAssistant({
               <h2 className="text-lg font-semibold">AI Script Assistant</h2>
             </div>
             <div className="flex items-center gap-2">
+              {conversationHistory.length > 0 && (
+                <button
+                  onClick={handleResetSession}
+                  title="Clear conversation history and start a new session"
+                  className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded flex items-center gap-1"
+                >
+                  <span>↺</span> New Session
+                </button>
+              )}
               <button
                 onClick={() => setShowSettings(true)}
                 className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded"
