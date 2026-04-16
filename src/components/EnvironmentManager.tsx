@@ -8,7 +8,7 @@ interface EnvironmentManagerProps {
 }
 
 export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
-  const { environments, addEnvironment, updateEnvironment, deleteEnvironment, initialize, isLoaded } =
+  const { environments, addEnvironment, duplicateEnvironment, updateEnvironment, deleteEnvironment, initialize, isLoaded } =
     useEnvironmentStore();
 
   const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
@@ -90,6 +90,13 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
     updateEnvironment(selectedEnv.id, { variables: newVariables });
   };
 
+  const handleDuplicateEnvironment = async (id: string) => {
+    const newEnv = await duplicateEnvironment(id);
+    if (newEnv) {
+      setSelectedEnvId(newEnv.id);
+    }
+  };
+
   const handleDeleteEnvironment = (id: string) => {
     deleteEnvironment(id);
     if (selectedEnvId === id) {
@@ -166,15 +173,27 @@ export function EnvironmentManager({ onClose }: EnvironmentManagerProps) {
                     onClick={() => setSelectedEnvId(env.id)}
                   >
                     <span className="text-sm truncate">{env.name}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteEnvironment(env.id);
-                      }}
-                      className="text-zinc-500 hover:text-red-400 text-sm"
-                    >
-                      ×
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateEnvironment(env.id);
+                        }}
+                        title="Duplicate environment"
+                        className="text-zinc-500 hover:text-blue-400 text-xs px-0.5"
+                      >
+                        ⧉
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEnvironment(env.id);
+                        }}
+                        className="text-zinc-500 hover:text-red-400 text-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))
               )}

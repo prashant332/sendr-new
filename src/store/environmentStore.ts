@@ -19,6 +19,7 @@ interface EnvironmentState {
   refreshEnvironments: () => Promise<void>;
 
   addEnvironment: (name: string) => Promise<void>;
+  duplicateEnvironment: (id: string) => Promise<Environment | null>;
   updateEnvironment: (id: string, updates: Partial<Omit<Environment, "id">>) => Promise<void>;
   deleteEnvironment: (id: string) => Promise<void>;
   setActiveEnvironment: (id: string | null) => Promise<void>;
@@ -151,6 +152,32 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       console.error("Failed to add environment:", error);
       throw error;
     }
+  },
+
+  duplicateEnvironment: async (id: string) => {
+    const state = get();
+    const source = state.environments.find((env) => env.id === id);
+    if (!source) return null;
+
+    if (!state.isLoaded) {
+      await get().initialize();
+    }
+
+    await ensureDbReady();
+
+    const newEnv: Environment = {
+      id: generateUUID(),
+      name: `Copy of ${source.name}`,
+      variables: structuredClone(source.variables),
+    };
+
+    await db.environments.add(newEnv);
+
+    set((s) => ({
+      environments: [...s.environments, newEnv],
+    }));
+
+    return newEnv;
   },
 
   updateEnvironment: async (id: string, updates: Partial<Omit<Environment, "id">>) => {
