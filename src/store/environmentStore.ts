@@ -155,16 +155,23 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   },
 
   duplicateEnvironment: async (id: string) => {
-    const state = get();
-    const source = state.environments.find((env) => env.id === id);
-    if (!source) return null;
-
-    if (!state.isLoaded) {
+    if (!get().isLoaded) {
       await get().initialize();
+    }
+
+    if (!get().isLoaded) {
+      throw new Error("Environment store failed to initialize");
     }
 
     await ensureDbReady();
 
+    const state = get();
+    const source =
+      state.environments.find((env) => env.id === id) ??
+      (await db.environments.get(id)) ??
+      null;
+
+    if (!source) return null;
     const newEnv: Environment = {
       id: generateUUID(),
       name: `Copy of ${source.name}`,
