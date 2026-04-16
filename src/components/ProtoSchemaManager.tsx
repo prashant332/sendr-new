@@ -16,6 +16,7 @@ import {
   getMethodType,
 } from "@/lib/grpc/protoParser";
 import { isWellKnownType } from "@/lib/grpc/wellKnownProtos";
+import { useEnvironmentStore } from "@/store/environmentStore";
 
 /**
  * Find all unresolved imports across all schemas
@@ -102,6 +103,8 @@ export function ProtoSchemaManager({
 }: ProtoSchemaManagerProps) {
   const schemas = useProtoSchemas();
   const collections = useCollections();
+  const theme = useEnvironmentStore((state) => state.theme);
+  const monacoTheme = theme === "light" ? "vs-light" : "vs-dark";
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedSchema, setSelectedSchema] = useState<ProtoSchema | null>(null);
@@ -578,13 +581,13 @@ service MyService {
                   <Editor
                     height="100%"
                     language="protobuf"
-                    theme="vs-dark"
+                    theme={monacoTheme}
                     value={editContent}
                     onChange={handleContentChange}
                     onMount={handleEditorMount}
                     options={{
                       minimap: { enabled: false },
-                      fontSize: 13,
+                      fontSize: 14,
                       lineNumbers: "on",
                       scrollBeyondLastLine: false,
                       automaticLayout: true,

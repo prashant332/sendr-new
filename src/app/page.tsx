@@ -112,6 +112,19 @@ export default function Home() {
   const activeEnvironmentId = useEnvironmentStore((state) => state.activeEnvironmentId);
   const showInlinePreview = useEnvironmentStore((state) => state.showInlinePreview);
   const setShowInlinePreview = useEnvironmentStore((state) => state.setShowInlinePreview);
+  const theme = useEnvironmentStore((state) => state.theme);
+  const setTheme = useEnvironmentStore((state) => state.setTheme);
+  const monacoTheme = theme === "light" ? "vs-light" : "vs-dark";
+
+  // Apply theme class to <html> element
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "light") {
+      root.classList.add("theme-light");
+    } else {
+      root.classList.remove("theme-light");
+    }
+  }, [theme]);
 
   // Monaco editor cleanup refs
   const preRequestEditorCleanupRef = useRef<(() => void) | null>(null);
@@ -762,8 +775,8 @@ export default function Home() {
                 title="Manage Proto Schemas"
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -779,6 +792,29 @@ export default function Home() {
                   <polyline points="10,9 9,9 8,9" />
                 </svg>
                 <span className="text-zinc-300">Proto</span>
+              </button>
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="flex items-center justify-center p-2 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+                title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              >
+                {theme === "dark" ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                )}
               </button>
               <EnvironmentSelector onManageClick={() => setShowEnvManager(true)} />
             </div>
@@ -949,13 +985,13 @@ export default function Home() {
                         key={`pre-request-editor-${activeEnvironmentId}`}
                         height="100%"
                         defaultLanguage="javascript"
-                        theme="vs-dark"
+                        theme={monacoTheme}
                         value={preRequestScript}
                         onChange={(value) => setPreRequestScript(value || "")}
                         onMount={handlePreRequestEditorMount}
                         options={{
                           minimap: { enabled: false },
-                          fontSize: 13,
+                          fontSize: 14,
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
@@ -987,13 +1023,13 @@ export default function Home() {
                         key={`test-editor-${activeEnvironmentId}`}
                         height="100%"
                         defaultLanguage="javascript"
-                        theme="vs-dark"
+                        theme={monacoTheme}
                         value={testScript}
                         onChange={(value) => setTestScript(value || "")}
                         onMount={handleTestEditorMount}
                         options={{
                           minimap: { enabled: false },
-                          fontSize: 13,
+                          fontSize: 14,
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
@@ -1153,12 +1189,12 @@ export default function Home() {
                       <Editor
                         height="100%"
                         defaultLanguage="json"
-                        theme="vs-dark"
+                        theme={monacoTheme}
                         value={JSON.stringify(response.data, null, 2)}
                         options={{
                           readOnly: true,
                           minimap: { enabled: false },
-                          fontSize: 13,
+                          fontSize: 14,
                           lineNumbers: "on",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,
@@ -1276,12 +1312,12 @@ export default function Home() {
                       <Editor
                         height="100%"
                         defaultLanguage="text"
-                        theme="vs-dark"
+                        theme={monacoTheme}
                         value={getRawResponse(response.data)}
                         options={{
                           readOnly: true,
                           minimap: { enabled: false },
-                          fontSize: 13,
+                          fontSize: 14,
                           lineNumbers: "off",
                           scrollBeyondLastLine: false,
                           automaticLayout: true,

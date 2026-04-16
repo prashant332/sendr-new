@@ -9,6 +9,7 @@ import { ProtoSchemaManager } from "@/components/ProtoSchemaManager";
 import type { GrpcConfig, GrpcMetadataEntry, ProtoSchema } from "@/lib/db";
 import { parseProtoContent, generateSampleMessage, getMethodType } from "@/lib/grpc/protoParser";
 import { isWellKnownType, getWellKnownProto } from "@/lib/grpc/wellKnownProtos";
+import { useEnvironmentStore } from "@/store/environmentStore";
 
 interface GrpcRequestEditorProps {
   config: GrpcConfig | undefined;
@@ -42,6 +43,8 @@ export function GrpcRequestEditor({
 }: GrpcRequestEditorProps) {
   const schemas = useProtoSchemas();
   const selectedSchema = useProtoSchema(config?.protoSchemaId || null);
+  const theme = useEnvironmentStore((state) => state.theme);
+  const monacoTheme = theme === "light" ? "vs-light" : "vs-dark";
 
   const [showProtoManager, setShowProtoManager] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<"message" | "metadata" | "options">("message");
@@ -445,13 +448,13 @@ export function GrpcRequestEditor({
                 <Editor
                   height="100%"
                   language="json"
-                  theme="vs-dark"
+                  theme={monacoTheme}
                   value={requestMessage}
                   onChange={(value) => onRequestMessageChange(value || "{}")}
                   onMount={handleEditorMount}
                   options={{
                     minimap: { enabled: false },
-                    fontSize: 13,
+                    fontSize: 14,
                     lineNumbers: "on",
                     scrollBeyondLastLine: false,
                     automaticLayout: true,

@@ -100,6 +100,7 @@ export interface AppSettings {
   id: string;
   activeEnvironmentId: string | null;
   showInlinePreview?: boolean; // Show resolved variable preview below URL input
+  theme?: "dark" | "light"; // UI color theme
 }
 
 // AI Provider Types

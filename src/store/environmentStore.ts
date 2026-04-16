@@ -8,6 +8,7 @@ interface EnvironmentState {
   environments: Environment[];
   activeEnvironmentId: string | null;
   showInlinePreview: boolean;
+  theme: "dark" | "light";
   isLoaded: boolean;
   isInitializing: boolean;
 
@@ -25,6 +26,7 @@ interface EnvironmentState {
   setVariable: (key: string, value: string) => Promise<void>;
   setVariables: (variables: Record<string, string>) => Promise<void>;
   setShowInlinePreview: (show: boolean) => Promise<void>;
+  setTheme: (theme: "dark" | "light") => Promise<void>;
 }
 
 const SETTINGS_ID = "app-settings";
@@ -60,6 +62,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
   activeEnvironmentId: null,
   showInlinePreview: true, // Default to showing inline preview
+  theme: "dark", // Default to dark theme
   isLoaded: false,
   isInitializing: false,
 
@@ -88,6 +91,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
           environments,
           activeEnvironmentId: settings?.activeEnvironmentId ?? null,
           showInlinePreview: settings?.showInlinePreview ?? true,
+          theme: settings?.theme ?? "dark",
           isLoaded: true,
           isInitializing: false,
         });
@@ -238,8 +242,21 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       id: SETTINGS_ID,
       activeEnvironmentId: state.activeEnvironmentId,
       showInlinePreview: show,
+      theme: state.theme,
     });
     set({ showInlinePreview: show });
+  },
+
+  setTheme: async (theme: "dark" | "light") => {
+    await ensureDbReady();
+    const state = get();
+    await db.settings.put({
+      id: SETTINGS_ID,
+      activeEnvironmentId: state.activeEnvironmentId,
+      showInlinePreview: state.showInlinePreview,
+      theme,
+    });
+    set({ theme });
   },
 }));
 

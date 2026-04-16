@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Slightly larger base font size for better readability */
+  font-size: 17px;
 }
 
 @theme inline {
@@ -23,4 +25,22 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Light theme: invert the zinc color scale so high numbers become light,
+   low numbers become dark — matching how the app uses zinc utilities. */
+html.theme-light {
+  --color-zinc-50:  #09090b;
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5;
+  --color-zinc-950: #fafafa;
+  --background: #ffffff;
+  --foreground: #171717;
 }
