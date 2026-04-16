@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractCodeFromMarkdown } from "@/lib/ai/adapters/base";
 
 interface OpenAIMessage {
   role: string;
@@ -199,10 +200,7 @@ export async function POST(request: NextRequest) {
         content = ollamaData.message?.content || "";
         // Ollama models often wrap responses in markdown code fences; strip them so
         // the caller receives raw JavaScript that can be embedded directly.
-        const ollamaCodeMatch = content.match(/```(?:[a-zA-Z0-9]*)?\s*([\s\S]*?)```/s);
-        if (ollamaCodeMatch) {
-          content = ollamaCodeMatch[1].trim();
-        }
+        content = extractCodeFromMarkdown(content);
         break;
       }
 
