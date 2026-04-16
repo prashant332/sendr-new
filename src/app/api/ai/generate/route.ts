@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractCodeFromMarkdown } from "@/lib/ai/adapters/base";
 
+function extractCodeFromMarkdown(markdown: string): string {
+  const fencedCodeBlockMatch = markdown.match(/```(?:[\w+-]+\n)?([\s\S]*?)```/);
+
+  if (fencedCodeBlockMatch?.[1]) {
+    return fencedCodeBlockMatch[1].trim();
+  }
+
+  return markdown.trim();
+}
 interface OpenAIMessage {
   role: string;
   content: string;
