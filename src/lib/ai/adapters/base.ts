@@ -14,7 +14,7 @@ export interface LLMAdapter {
   testConnection(provider: LLMProvider): Promise<{ success: boolean; error?: string; model?: string }>;
 }
 
-const CODE_FENCE_RE = /```(?:[a-zA-Z0-9]*)?\s*([\s\S]*?)```/s;
+const CODE_FENCE_RE = /```(?:[^\r\n`]*)?\s*([\s\S]*?)```/;
 
 // Extract raw code from a markdown code fence, or return the original string unchanged.
 export function extractCodeFromMarkdown(content: string): string {
