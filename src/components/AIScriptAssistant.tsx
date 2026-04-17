@@ -174,7 +174,7 @@ export default function AIScriptAssistant({
   return (
     <>
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-[#1e1e1e] rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="bg-[#1e1e1e] text-white rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-gray-700">
             <div className="flex items-center gap-3">
@@ -272,7 +272,7 @@ export default function AIScriptAssistant({
                     ? 'e.g., "Extract the auth token from response and save it as authToken variable"'
                     : 'e.g., "Set a timestamp header with the current time"'
                 }
-                className="w-full h-24 bg-gray-800 rounded p-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full h-24 bg-gray-800 text-white placeholder:text-gray-400 rounded p-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     handleGenerate();
@@ -362,7 +362,7 @@ export default function AIScriptAssistant({
                       <input
                         type="text"
                         placeholder='e.g., "Also add a null check" or "Use a different variable name"'
-                        className="flex-1 bg-gray-800 rounded px-3 py-2 text-sm"
+                        className="flex-1 bg-gray-800 text-white placeholder:text-gray-400 rounded px-3 py-2 text-sm"
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             const input = e.currentTarget;

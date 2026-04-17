@@ -170,7 +170,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#1e1e1e] rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="bg-[#1e1e1e] text-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold">
@@ -331,7 +331,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                         onChange={(e) =>
                           updateSettings({ temperature: parseFloat(e.target.value) || 0.2 })
                         }
-                        className="ml-2 w-20 bg-gray-700 rounded px-2 py-1 text-sm"
+                        className="ml-2 w-20 bg-gray-700 text-white rounded px-2 py-1 text-sm"
                       />
                     </label>
 
@@ -346,7 +346,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                         onChange={(e) =>
                           updateSettings({ maxTokens: parseInt(e.target.value) || 1500 })
                         }
-                        className="ml-2 w-24 bg-gray-700 rounded px-2 py-1 text-sm"
+                        className="ml-2 w-24 bg-gray-700 text-white rounded px-2 py-1 text-sm"
                       />
                     </label>
                   </div>
@@ -400,7 +400,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="My OpenAI"
-                  className="w-full bg-gray-700 rounded px-3 py-2"
+                  className="w-full bg-gray-700 text-white placeholder:text-gray-400 rounded px-3 py-2"
                 />
               </div>
 
@@ -412,7 +412,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                   value={formData.apiKey}
                   onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
                   placeholder={formData.type === "ollama" ? "Not required for local Ollama" : "sk-..."}
-                  className="w-full bg-gray-700 rounded px-3 py-2"
+                  className="w-full bg-gray-700 text-white placeholder:text-gray-400 rounded px-3 py-2"
                 />
                 <p className="text-xs text-gray-400 mt-1">
                   {formData.type === "openai" && "Get your API key from platform.openai.com"}
@@ -429,7 +429,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                   <select
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    className="w-full bg-gray-700 rounded px-3 py-2"
+                    className="w-full bg-gray-700 text-white rounded px-3 py-2"
                   >
                   {PROVIDER_MODELS[formData.type].map((model) => {
                       const info = formData.type === "ollama" ? OLLAMA_MODEL_INFO[model] : undefined;
@@ -449,7 +449,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                     placeholder="model-name"
-                    className="w-full bg-gray-700 rounded px-3 py-2"
+                    className="w-full bg-gray-700 text-white placeholder:text-gray-400 rounded px-3 py-2"
                   />
                 )}
                 {formData.type === "ollama" && OLLAMA_MODEL_INFO[formData.model] && (
@@ -479,7 +479,7 @@ export default function AISettingsModal({ isOpen, onClose }: AISettingsModalProp
                   value={formData.baseUrl}
                   onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
                   placeholder="https://api.openai.com/v1"
-                  className="w-full bg-gray-700 rounded px-3 py-2"
+                  className="w-full bg-gray-700 text-white placeholder:text-gray-400 rounded px-3 py-2"
                 />
                 <p className="text-xs text-gray-400 mt-1">
                   Change this if using a proxy, Azure OpenAI, or custom endpoint
